@@ -63,6 +63,17 @@ text-align: center;
 margin: 1.5em auto;
 }
 
+.figure img {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.figure p {
+  margin-top: 0.5em;
+  margin-bottom: 0;
+}
+
 img, .plot {
 display: block;
 margin: 0 auto;
@@ -156,4 +167,11 @@ margin: 2.5cm 2cm;
 .html-widget > div {
     width: 100% !important;
     height: auto;
+}
+
+/* --- Otros estilos --- */
+.figure p,
+figure figcaption,
+.caption {
+  text-align: center !important;
 }
