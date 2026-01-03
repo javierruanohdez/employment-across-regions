@@ -1,4 +1,4 @@
-# 📊 Employment Across Regions
+# 💼 Employment Across Regions
 
 ### Interactive Dashboard & Analytical Memory (CRISP-DM Approach)
 
