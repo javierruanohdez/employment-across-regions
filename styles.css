@@ -1,0 +1,42 @@
+/* Centrar TODOS los gráficos */
+body {
+  background-color: #f8f9fa;
+}
+
+.main-container {
+  max-width: 90%;
+  margin: 0 auto;
+}
+
+img {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 100%;
+}
+
+/* Para gráficos de R específicamente */
+.figure {
+  text-align: center;
+  margin: 20px 0;
+}
+
+/* Contenedor de gráficos */
+.plot-container {
+  text-align: center;
+  margin: 25px 0;
+}
+
+/* Para tablas también si quieres */
+table {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Opcional: estilo para títulos de gráficos */
+.figure-title {
+  text-align: center;
+  font-weight: bold;
+  margin-bottom: 10px;
+  color: #333;
+}
