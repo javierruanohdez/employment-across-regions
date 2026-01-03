@@ -1,0 +1,3432 @@
+---
+title: "Employment Across Regions"
+author: "Javier Ruano Hernández"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    css: styles.css
+---
+
+
+```{r,echo=FALSE, options(bitmapType = "cairo")}
+knitr::opts_chunk$set(
+  fig.align = "center",   
+  out.width = "95%",      
+  fig.asp = 0.5,        
+  dev = "png",            
+  dpi = 150,
+  warning = FALSE,
+  message = FALSE,
+  cache=TRUE, 
+  echo=FALSE
+)
+```
+
+```{r global, include=FALSE}
+library(eurostat)
+library(DT)
+library(googlesheets4)
+library(kableExtra)
+library(patchwork)
+library(zoo)
+library(MASS)
+library(flexdashboard)
+library(datasets)
+library(highcharter) 
+library(fpp3)
+library(RColorBrewer)
+library(openxlsx)  
+library(leaflet)  
+library(geojsonio)
+library(plotly)
+library(ggplot2)
+library(tidyverse)
+source("utilidades.R")
+```
+
+```{r,echo=FALSE}
+filter <- dplyr::filter 
+select <- dplyr::select 
+mutate <- dplyr::mutate 
+arrange <- dplyr::arrange 
+group_by <- dplyr::group_by 
+summarise <- dplyr::summarise 
+summarize <- dplyr::summarize 
+rename <- dplyr::rename 
+distinct <- dplyr::distinct 
+slice<- dplyr::slice 
+relocate<- dplyr::relocate 
+selectInput <- shiny::selectInput
+```
+
+```{r}
+theme_set(
+    theme_minimal(base_family = "serif") +
+    theme(
+        text = element_text(family = "serif", color = "#222222"),
+        plot.title = element_text(family = "serif", face = "bold", size = 16, hjust = 0.5),
+        plot.subtitle = element_text(family = "serif", face = "italic", size = 14, hjust = 0.5),
+        axis.title = element_text(family = "serif", face = "bold", size = 14),
+        axis.text = element_text(family = "serif", size = 12),
+        legend.title = element_text(family = "serif", face = "bold", size = 13),
+        legend.text = element_text(family = "serif", size = 12),
+        plot.margin = margin(15, 15, 15, 15),
+        panel.grid.major = element_line(color = "#e0e0e0"),
+        panel.grid.minor = element_blank()
+    )
+)
+
+update_geom_defaults("text", list(family = "serif"))
+update_geom_defaults("label", list(family = "serif"))
+```
+
+
+[Cuadro de mandos](http://10.22.143.222:3838/sample-apps/a2658/DashboardJRH.Rmd)
+
+[Repositorio en Github](https://github.com/javierruanohdez/employment-across-regions)
+
+
+<div class="figure">
+  <img src="Portada Proyecto Personal.jpg" width="60%" />
+  <p><em>Joana Gancho. ST. 2023.</em></p>
+</div>
+
+# Introducción
+
+El análisis del empleo y la equidad en Europa suele contemplarse desde la cumbre, observando promedios nacionales o regionales amplios (NUTS 2). Sin embargo, esta visión panorámica oculta la topografía real del mercado laboral: las profundas desigualdades y dinámicas específicas que se originan y divergen en las escalas territoriales más cercanas a la ciudadanía.
+
+Este proyecto emprende un **viaje analítico de desescalada**, desde una visión continental hasta el detalle de las provincias y condados (nivel **NUTS 3**). Su objetivo es trazar la **evolución** de tres dimensiones críticas e interconectadas en cada nivel de este descenso:
+
+1. La **dinámica del empleo** (creación, destrucción y evolución).
+
+2. La **brecha de género** en el mercado laboral.
+
+3. La **participación sectorial y la transformación** de la estructura productiva.
+
+El **problema central** que abordamos es la falta de un diagnóstico integrado que rastree cómo estas tres dimensiones **evolucionan y se configuran de manera distintiva** a medida que descendemos en la escala territorial. ¿Se reducen o amplían las brechas de género en territorios de alto crecimiento? ¿Cómo influye la especialización sectorial de una provincia en la trayectoria de su empleo y en las oportunidades para hombres y mujeres? Las respuestas a estas preguntas no están en las cumbres agregadas, sino en las laderas y valles de las economías locales.
+
+Por ello, este análisis busca descender metódicamente desde Europa hasta el nivel NUTS 3, para revelar cómo la interacción entre la **evolución del empleo, la brecha de género y la composición sectorial** define oportunidades y desafíos únicos en cada territorio, proporcionando así una cartografía esencial para políticas de cohesión y desarrollo local verdaderamente precisas y efectivas.
+
+
+##  Estado actual
+
+El análisis de las desigualdades territoriales en la UE requiere descender más allá de las medias nacionales. Estudios como los de **Rodríguez-Pose (2018)** y los informes de **cohesión territorial de la Comisión Europea** destacan la relevancia de la escala provincial (NUTS 3) para identificar divergencias reales en desarrollo económico. Paralelamente, organismos como el **Instituto Europeo de la Igualdad de Género (EIGE)** documentan la persistencia de brechas de género en el mercado laboral, aunque principalmente a niveles agregados.
+
+Este proyecto integra tres dimensiones evolutivas a esta escala: la **trayectoria del empleo**, la **brecha de género** (calculada como diferencia entre tasas de ocupación masculina y femenina) y la **transformación sectorial**. Su novedad reside en analizar su evolución conjunta y calcular **correlaciones** entre indicadores económicos, de empleo y de especialización productiva, superando así enfoques estáticos o fragmentados.
+
+La realización del estudio se justifica por la ventana de oportunidad que ofrecen las actuales políticas europeas (**Estrategia de Cohesión 2021-2027**, fondos de recuperación), que exigen diagnósticos precisos a escala subregional para ser efectivas. Además, el análisis se enriquece con un **caso de estudio aplicado en Canarias**, que profundiza en la **inserción laboral por formación** (Universidad y FP) y en la **tipología contractual**, aportando una perspectiva concreta sobre la calidad del empleo.
+
+En conjunto, este enfoque metodológico —que combina análisis comparativo paneuropeo, prospectiva sectorial y un estudio de caso regional— busca llenar un vacío analítico, proporcionando una base empírica sólida para el diseño de políticas de desarrollo local y cohesión territorial más inteligentes e inclusivas.
+
+## Motivación
+
+En un primer momento, la idea de este proyecto giraba en torno a la contaminación medioambiental, impulsada por la convicción de que comprender el impacto de nuestras acciones es un paso necesario para proteger el planeta que habitamos. Sin embargo, al no disponer de los datos necesarios para desarrollar esa visión con la profundidad que merecía, el proyecto tomó otro rumbo. Un cambio que, con el tiempo, entendí que no era casual.
+
+Desde hace años, el discurso sobre el empleo forma parte del ruido de fondo de nuestra sociedad: titulares, conversaciones cotidianas y mensajes repetidos que insisten en que “la situación está mal” y que “no hay oportunidades”. Esa afirmación constante despertó en mí una inquietud: ¿qué hay realmente detrás de esas frases?, ¿qué cuentan los datos cuando se observan con atención y sin prejuicios?
+
+Este proyecto nace de la necesidad de responder a esas preguntas a través del análisis. No como un ejercicio frío de números, sino como una forma de comprender una realidad compleja que afecta directamente a las personas y a los territorios. **Porque el empleo no es solo una variable económica: es estabilidad, es futuro, es dignidad. Y cada cifra, cada porcentaje, es el reflejo de miles de decisiones, esfuerzos y expectativas.**
+
+Lo que comenzó como una exploración de datos terminó convirtiéndose en un proceso de aprendizaje y reflexión. Un intento de leer entre líneas, de extraer significado de los números y de ofrecer una mirada propia sobre cómo el empleo —o su ausencia— moldea la vida de una sociedad. **Este proyecto es, en esencia, una invitación a mirar más allá de las estadísticas y a entender la historia que cuentan cuando se las escucha con atención.**
+
+## Objetivo
+
+El propósito principal de este trabajo es analizar, de manera integral y multiescalar, la dinámica territorial del empleo en España y Europa, con especial atención a su evolución sectorial y a las desigualdades de género.
+
+Para lograrlo, se establecen los siguientes objetivos específicos:
+
+1.  **Analizar la evolución del empleo** desde el año 2000, examinando las tendencias a nivel europeo, nacional y, con mayor detalle, a escala NUTS 3, para identificar patrones de crecimiento, estancamiento o declive en el tiempo.
+2.  **Mapear la transformación de la estructura productiva**, estudiando la participación y evolución de los distintos sectores económicos en cada territorio, con el fin de identificar especializaciones, transiciones y sectores con potencial de futuro.
+3.  **Evaluar las disparidades territoriales** mediante el cálculo y comparación de indicadores clave, como el cociente entre el empleo y la población en edad de trabajar, para diagnosticar la salud relativa de los mercados laborales regionales.
+4.  **Cuantificar y visualizar la brecha de género en el empleo**, desagregando todos los análisis por sexo para medir su magnitud, evolución y variación territorial, contribuyendo a una diagnosis espacial de la desigualdad.
+
+Como meta final y profundamente personal, este proyecto busca **devolver la conversación**. Aspira a sentarme de nuevo con mi padre, para comentar los resultados del estudio como antaño, pero invirtiendo los roles esta vez. Será con los datos, mapas y análisis que yo mismo he elaborado, con los que intercambiaremos historias y cifras sobre el empleo, cerrando así un círculo que empezó hace años en casa, cuando eran sus relatos los que despertaban mi curiosidad.
+
+# Aportaciones del trabajo
+
+## Principales aportaciones
+
+Este trabajo realiza contribuciones significativas al estudio del empleo desde una perspectiva territorial dinámica e integrada. Sus principales aportaciones son:
+
+1.  **Un modelo de análisis multiescalar y evolutivo:** Proporciona una metodología clara para analizar el empleo, desde el nivel continental hasta el provincial (NUTS 3), superando la visión estática mediante el estudio de tendencias desde el año 2000. Este enfoque permite identificar no solo dónde están las desigualdades, sino cómo se han desarrollado a lo largo del tiempo.
+
+2.  **Diagnóstico integrado de tres dimensiones clave:** Vincula de forma sistemática la **evolución del empleo** (incluyendo un análisis *per cápita*), la **brecha de género** y la **transformación sectorial**. Esta integración revela interrelaciones críticas, como cómo la especialización productiva de una región condiciona tanto su capacidad de generar empleo como la equidad en su distribución entre hombres y mujeres.
+
+3.  **Herramienta para la prospectiva y la política económica:** Al aplicar técnicas de análisis de tendencias a la composición sectorial, el trabajo **identifica sectores con potencial de futuro** en cada territorio. Esto, unido al análisis de correlaciones entre indicadores económicos y de empleo, proporciona una base empírica sólida para:
+    *   **Diseñar políticas de empleo y desarrollo económico regionales** más precisas y adaptadas.
+    *   **Fomentar políticas de igualdad efectivas**, al mostrar cómo la brecha de género varía según el contexto económico local.
+    *   **Anticipar necesidades de formación y transiciones laborales**, guiando la inversión en capital humano hacia los sectores emergentes.
+
+4.  **Creación de un cuadro de mandos visual:** La síntesis de los análisis en mapas y dashboards interactivos constituye en sí misma una aportación práctica, ofreciendo a investigadores, gestores públicos y ciudadanos una herramienta intuitiva para comprender la compleja geografía del empleo y la igualdad en España y Europa.
+
+En conjunto, este estudio actualiza y amplía el conocimiento existente al ofrecer una **radiografía dinámica, conectada y aplicable** del mercado laboral. Su valor reside en transformar datos complejos en insights accionables, facilitando la transición desde el diagnóstico hacia el diseño de políticas más inteligentes, resilientes y justas para los territorios.
+
+
+## Alineamiento con los objetivos de desarrollo sostenible
+
+Este proyecto se relaciona de forma **alta (3)** con los ODS **1, 5, 8 y 10**, ya que constituyen su núcleo analítico y su propósito último:
+
+*   **ODS 1: Fin de la pobreza.** Un empleo estable y de calidad es el principal mecanismo para escapar de la pobreza. Al diagnosticar las disparidades territoriales en la creación y calidad del empleo, este trabajo identifica las zonas con mayor riesgo de exclusión socioeconómica y aporta evidencia para políticas que fomenten oportunidades laborales inclusivas.
+*   **ODS 8: Trabajo decente y crecimiento económico.** Es el objetivo central del análisis. El estudio evalúa la evolución, la distribución y la calidad del empleo, junto con la transformación sectorial, proporcionando la base para promover un crecimiento económico sostenible e inclusivo que genere trabajo decente para todos.
+*   **ODS 5: Igualdad de género.** La medición y el mapeo de la brecha de género en la participación y las condiciones laborales es un pilar fundamental del proyecto, ofreciendo datos esenciales para diseñar políticas efectivas que promuevan la igualdad de oportunidades y cierren las disparidades en el mercado laboral.
+*   **ODS 10: Reducción de las desigualdades.** La metodología multiescalar (de Europa a NUTS 3) está específicamente diseñada para medir y visibilizar las **desigualdades territoriales** en el acceso a empleo y desarrollo económico, siendo el primer paso indispensable para reducirlas mediante políticas de cohesión.
+
+Se vincula en un grado **medio (2)** con los ODS **9 y 11**, ya que sus resultados, aunque no son el foco directo, contribuyen de manera significativa a estos ámbitos:
+
+*   **ODS 9: Industria, innovación e infraestructuras.** La identificación de sectores con potencial futuro y el análisis de la especialización productiva territorial ofrecen insights clave para orientar la inversión en **innovación** y desarrollar **infraestructuras económicas resilientes** adaptadas a cada contexto regional.
+
+*   **ODS 11: Ciudades y comunidades sostenibles.** El análisis a escala NUTS 3 captura la dinámica de áreas urbanas y rurales. Los diagnósticos sobre empleo y brechas de género son fundamentales para planificar **comunidades más inclusivas, seguras y sostenibles**, donde el desarrollo económico beneficie a todos sus habitantes.
+
+La relación con el resto de ODS se considera **baja (1)** o **no procede (0)**, dado que el objeto de estudio no se centra en dimensiones ambientales específicas (energía, clima, ecosistemas), sanitarias o de gobernanza global, aunque la metodología podría aplicarse en futuras investigaciones para explorar algunas de estas intersecciones (por ejemplo, el empleo en la economía verde).
+
+```{r}
+tb <- read.xlsx("ODS.xlsx") %>%
+  as_tibble()
+tb[is.na(tb)] <- ""
+
+colnames(tb) <- c("ODS","No procede", "Bajo", "Medio","Alto")
+tabla <- kable(tb,caption="Grado de relación del proyecto con los objetivos de desarrollo sostenible (ODS)", 
+                format = "html",
+                table.attr = 'style="width:500px; margin-left: auto; margin-right: auto;"') 
+tabla %>% column_spec(2, extra_css = "text-align: center;") %>%
+          column_spec(3, extra_css = "text-align: center;") %>%
+          column_spec(4, extra_css = "text-align: center;") %>%
+          column_spec(5, extra_css = "text-align: center;")
+```
+
+# Desarrollo
+
+
+## Herramientas empleadas
+
+Para el desarrollo de este proyecto se ha empleado el ecosistema **R y RStudio**, seleccionado por su capacidad para el análisis estadístico, la manipulación de datos a gran escala y la creación de visualizaciones reproducibles y de alta calidad, esenciales para un estudio territorial de esta envergadura.
+
+El flujo de trabajo se ha estructurado en torno a un conjunto específico de librerías del `tidyverse` (**dplyr**, **tidyr**, **ggplot2**) para la gestión y transformación de datos y su visualización estática. La obtención de datos armonizados se realizó mediante la librería **eurostat**, mientras que el análisis de series temporales y prospectiva sectorial empleó **fpp3**. Para la visualización interactiva y la creación del cuadro de mandos se utilizaron **plotly**, **leaflet** (junto con **geojsonio** para datos espaciales) y **highcharter**.
+
+El producto final, un cuadro de mandos interactivo (*dashboard*) que integra todos los análisis, se ha desarrollado con **flexdashboard** y se ha desplegado públicamente en un **servidor Shiny del DIS**, garantizando así su accesibilidad y facilitando la difusión de los resultados de forma dinámica e intuitiva.
+
+## Metodología
+
+Utilizaremos la metodología de desarrollo CRISP-DM (Cross Industry Standard Process for Data Mining) que es un marco ampliamente utilizado para proyectos de Ciencias de Datos. En la siguiente figura se presenta un diagrama con las diferentes fases de esta metodología que a continuación describimos con más detalle: 
+
+<center>
+<img src="https://ctim.es/AEDV/1200px-CRISP-DM_Process_Diagram1.5x.png" width="40%" />
+<p style="font-size: 14px; color: gray;"><em>Diagrama metodología de desarrollo CRISP-DM</em></p>
+</center>
+
+
+
+* **Comprensión del negocio**. Se plantean los objetivos del proyecto y la búsqueda de información y datos. 
+
+
+* **Comprensión de los datos**. Se analiza la  estructura y organización de los datos obtenidos. Se identifican posible problemas como datos faltantes, outliers o inconsistencias. 
+
+
+* **Preparación de los datos**. Se realiza limpieza, transformación, combinación y selección/creación de variables relevantes para el análisis
+
+
+* **Modelado**. Selección y aplicación de los modelos adecuados para analizar los datos 
+
+
+* **Evaluación**. Evaluar si el modelo responde a las preguntas de investigación, comparación con otros métodos 
+
+
+* **Despliegue**. Comunicación del trabajo en una memoria y diseño y elaboración de un cuadro de mandos para presentar los resultados de forma eficaz y atractiva. 
+
+
+ 
+ Es importante observar que esta metodología es iterativa, es decir que los resultados obtenidos en algunas de las fases puede afectar al desarrollo de fases anteriores. 
+ 
+ A continuación se describirá en detalle como se han abordado cada una de las fases del desarrollo del proyecto siguiendo esta metodología.
+
+
+## Comprensión del negocio
+
+La definición del alcance y la búsqueda de fuentes de datos constituyeron una fase fundamental para garantizar la solidez y relevancia del análisis. Se priorizó la obtención de datos oficiales, armonizados y con una desagregación territorial suficiente para el análisis multiescalar planteado.
+
+La fuente principal y vertebral del proyecto es **Eurostat**, por su cobertura paneuropea, su estructura consistente (NUTS) y sus series temporales largas y comparables. A través de su API y de la librería `eurostat` de R, se accedió a datos clave sobre empleo, población y cuentas regionales.
+
+Para complementar el análisis y añadir profundidad, se consultaron otras fuentes oficiales:
+
+*   **INE e ISTAC:** Para datos nacionales y regionales de España y Canarias con mayor detalle sectorial o sobre tipología contractual e inserción laboral, esenciales para el caso de estudio específico.
+
+*   **OBECAN:** Como fuente de referencia para contextualizar y validar los hallazgos relativos al mercado laboral canario.
+
+*   **OWID (Our World in Data):** Para enriquecer el análisis con indicadores económicos clave agregados, como el **PIB per cápita** o medidas de **productividad**, que permiten correlacionar la evolución del empleo con el desempeño económico general.
+
+*   **DBnomics:** Esta plataforma resultó de gran utilidad en la fase exploratoria, al permitir examinar de forma interactiva y visual la estructura y disponibilidad de numerosos *datasets* antes de su descarga e integración.
+
+El proceso de selección fue riguroso. Tras una búsqueda extensa, se identificó el *dataset* principal sobre **empleo por sector y región (NUTS 3)**. Siguiendo la recomendación de robustecer el análisis, se incorporaron otros dos *datasets* fundamentales: uno de **población en edad de trabajar** para calcular ratios *per cápita* (como la tasa de empleo), y otro de **empleo desagregado por sexo** para calcular y analizar la brecha de género. Esta combinación de fuentes asegura una base de datos integral para abordar todos los objetivos planteados.
+
+## Comprensión de los datos
+
+### Dataset principal ("nama_10r_3empers").
+
+```{r,echo=FALSE}
+dataset.name <- "nama_10r_3empers"
+```
+ **Datos básicos del dataset **:
+```{r}
+datasets <- read.xlsx("Eurostat.datasets.xlsx") %>%
+  as_tibble()  %>% 
+  filter(code==dataset.name)
+```
+
+* **code**: `r datasets$code[1]`
+* **title**: `r datasets$title[1]`
+* **last.update.of.data**: `r datasets$last.update.of.data[1]`
+<!-- * **last.table.structure.change**: `r datasets$last.table.structure.change[1]` --> 
+* **data.start**: `r datasets$data.start[1]`
+* **data.end**: `r datasets$data.end[1]`
+* **values**: `r format(datasets$values[1],big.mark = ".")`
+
+ **Resumen**: Presenta información detallada sobre estadísticas de empleo en miles de personas (“thousand persons”) relativas a las regiones de nivel NUTS 3 en la Unión Europea. 
+La actividad económica está clasificada por ramas según NACE Rev. 2, la nomenclatura de actividades económicas establecida por la Unión Europea. 
+
+  **Utilidad**: Permite comparar niveles de empleo entre regiones relativamente pequeñas (NUTS 3), ver qué regiones tienen más personas empleadas, y cómo cambia esa cifra con el tiempo.
+Al incluir la división por actividad económica (NACE Rev. 2), se puede ver qué sectores emplean más en cada región, cuánto empleo aporta la industria frente a los servicios, agricultura, etc.
+Los gobiernos/regiones pueden usar estos datos para diseñar políticas de empleo, programas de formación, inversiones en infraestructuras laborales,..., haciendo énfasis en aquellas áreas con empleo débil o con especialización sectorial desfavorable.
+
+```{r,results='hide'}
+data <- get_eurostat(dataset.name, time_format = "date") %>%
+  as_tibble() %>%
+  arrange(TIME_PERIOD,geo)
+```
+
+
+```{r}
+str(data)
+```
+
+
+**Descripción variables categóricas**:
+
+  <u>freq</u>: frecuencia con la que se toman las observaciones. 
+  Tiene un único valor "A", que corresponde a datos anuales.
+
+  <u>unit</u>: unidad de medida de la observación. 
+  Tiene un valor único: "THS", cuyo significado es miles de personas (thousands).
+
+  <u>wstatus</u>: estado laboral del empleo. Valores posibles:
+  
+  -"EMP": Total de personas empleadas.
+  
+  -"SAL": Empleados asalariados.
+  
+  -"SELF": Trabajadores por cuenta propia (autónomos).
+
+  <u>nace_r2</u>: actividad económica según la clasificación NACE Rev. 2.
+  
+  -"TOTAL": Total - all NACE activities.
+  
+  -"O-U": Public administration and defence; compulsory social security; education; human health and social work activities; arts, entertainment and recreation, repair of household goods and other services.
+  
+  -"F": Construction.
+  
+  -"G-J": Wholesale and retail trade; transport; accommodation and food service activities; information and communication.
+  
+  -"K-N": Financial and insurance activities; real estate; professional, scientific and technical activities; administrative and support service activities.
+  
+  -"A": Agriculture, forestry and fishing.
+  
+  -"B-E": Industry (except construction).
+  
+  -"C": Manufacturing.
+  
+  -"O-Q": Public administration and defence; compulsory social security; education; human health and social work activities.
+  
+  -"R-U": Arts, entertainment and recreation; other service activities; activities of household and extra-territorial organizations and bodies.
+  
+  -"M_N": Professional, scientific and technical activities; administrative and support service activities.
+  
+  -"G-I": Wholesale and retail trade, transport, accommodation and food service activities.
+  
+  -"J": Information and communication.
+  
+  -"L": Real estate activities.
+  
+  -"K": Financial and insurance activities.
+  
+
+  <u>geo</u>: región geográfica, (NUTS 3) el nivel más detallado de la clasificación territorial usada por la Unión Europea.
+  
+  Incluye 30 regiones NUTS 0, 96 regiones NUTS 1, 256 regiones NUTS 2, 1207 regiones NUTS 3 y 40 códigos que no tienen asociada una región real en alguno de los mapas NUTS.  
+
+  <u>TIME_PERIOD</u>: fechas de las observaciones. 
+  Existen observaciones desde 1995 hasta 2023 (última actualización de los datos), sin embargo, por ejemplo los datos sobre el territorio español comenzaron a registrarse a partir del año 2000.
+  
+**Organización de los datos**:
+
+  Los datos están organizados de forma ordenada (tidy), es decir una sola observación por cada fila de la tabla acompañada de variables categóricas.
+
+```{r}
+NUTS0_codes <- c("EL", "ES", "FI", "FR", "HR", "HU", "IE", "IS", "AL", "AT", "BA", "BE", "BG", "CH", "CY", "CZ", "DE", "DK", "EE", "IT", "LI", "LT", "LU", "LV", "ME", "MK", "MT", "NL", "NO", "PL", "PT", "RO", "RS", "SE", "SI", "SK", "TR", "UA", "XK")
+
+NUTS1_codes <- c("DEA", "DEB", "DEC", "DED", "DEE", "DEF", "DEG", "DK0", "EE0", "EL3", "EL4", "EL5", "EL6", "ES1", "ES2", "ES3", "ES4", "ES5", "ES6", "ES7", "FI1", "AL0", "AT1", "AT2", "AT3", "BA0", "BE1", "BE2", "BE3", "BG3", "BG4", "CH0", "CY0", "CZ0", "DE1", "DE2", "DE3", "DE4", "DE5", "DE6", "DE7", "DE8", "DE9", "HR0", "HU1", "HU2", "HU3", "IE0", "IS0", "ITC", "ITF", "ITG", "ITH", "ITI", "LI0", "XK0", "LT0", "LU0", "LV0", "ME0", "MK0", "MT0", "NL1", "NL2", "NL3", "NL4", "NO0", "PL2", "PL4", "PL5", "PL6", "PL7", "PL8", "PL9", "PT1", "PT2", "PT3", "RO1", "RO2", "RO3", "RO4", "RS1", "RS2", "SE1", "SE2", "SE3", "SI0", "SK0", "TR1", "TR2", "TR3", "TR4", "TR5", "TR6", "TR7", "TR8", "TR9", "TRA", "TRB", "TRC", "FI2", "FR1", "FRB", "FRC", "FRD", "FRE", "FRF", "FRG", "FRH", "FRI", "FRJ", "FRK", "FRL", "FRM", "FRY")
+
+NUTS2_codes <- c("DE12", "DE13", "DE14", "DE21", "DE22", "DE23", "DE24", "DE25", "DE26", "DE27", "DE30", "DE40", "DE50", "DE60", "DE71", "DE72", "DE73", "DE80", "DE91", "DE92", "DE93", "DE94", "DEA1", "DEA2", "DEA3", "DEA4", "DEA5", "DEB1", "DEB2", "DEB3", "DEC0", "DED2", "DED4", "DED5", "DEE0", "DEF0", "DEG0", "DK01", "AL01", "AL02", "AL03", "AT11", "AT12", "AT13", "AT21", "AT22", "AT31", "AT32", "AT33", "AT34", "BA01", "BA02", "BA03", "BE10", "BE21","BE22", "BE23", "BE24", "BE25", "BE31", "BE32", "BE33", "BE34", "BE35", "BG31", "BG32", "BG33", "BG34", "BG41", "BG42", "CH01", "CH02", "CH03", "CH04", "CH05", "CH06", "CH07", "CY00", "CZ01", "CZ02", "CZ03", "CZ04", "CZ05", "CZ06", "CZ07", "CZ08", "DE11", "MK00", "MT00", "NL11", "NL12", "NL13", "NL21", "NL22", "NL23", "NL32", "NL34", "NL35", "NL36", "NL41", "NL42", "NO02", "NO06", "NO07", "NO08", "NO09", "NO0A", "NO0B", "PL21", "PL22", "PL41", "PL42", "PL43", "PL51", "PL52", "PL61", "PL62", "PL63", "PL71", "PL72", "PL81", "PL82", "PL84", "PL91", "PL92", "PT11", "PT15", "PT19", "PT1A", "PT1B", "PT1C", "DK02", "DK03", "DK04", "DK05", "EE00", "EL30", "EL41", "EL42", "EL43", "EL51", "EL52", "EL53", "EL54", "EL61", "EL62", "EL63", "EL64", "EL65", "ES11", "ES12", "ES13", "ES21", "ES22", "ES23", "ES24", "ES30", "ES41", "ES42", "ES43", "ES51", "ES52", "ES53", "ES61", "ES62", "ES63", "ES64", "ES70", "FI19", "FI1B", "FI1C", "FI1D", "FI20", "FR10", "FRB0", "FRC1", "FRC2", "FRD1", "FRD2", "FRE1", "FRE2", "FRF1", "FRF2", "FRF3", "FRG0", "FRH0", "FRI1", "FRI2", "FRI3", "FRJ1", "FRJ2", "FRK1", "FRK2", "FRL0", "FRM0", "FRY1", "FRY2", "FRY3", "FRY4", "FRY5", "HR02", "HR03", "HR05", "HR06", "HU11", "HU12", "HU21", "HU22", "HU23", "HU31", "HU32", "HU33", "IE04", "IE05", "IE06", "IS00", "ITC1", "ITC2", "ITC3", "ITC4", "ITF1", "ITF2", "ITF3", "ITF4", "ITF5", "ITF6", "ITG1", "ITG2", "ITH1", "ITH2", "ITH3", "ITH4", "ITH5", "ITI1", "ITI2", "ITI3", "ITI4", "LI00", "LT01", "LT02", "LU00", "LV00", "ME00", "SE33", "SI03", "SI04", "SK01", "SK02", "SK03", "SK04", "TR10", "TR21", "TR22", "TR31", "TR32", "TR33", "TR41", "TR42", "TR51", "TR52", "TR61", "TR62", "TR63", "TR71", "TR72", "TR81", "TR82", "TR83", "TR90", "TRA1", "TRA2", "TRB1", "TRB2", "TRC1", "TRC2", "TRC3", "XK00", "PT1D", "PT20", "PT30", "RO11", "RO12", "RO21", "RO22", "RO31", "RO32", "RO41", "RO42", "RS11", "RS12", "RS21", "RS22", "SE11", "SE12", "SE21", "SE22", "SE23", "SE31", "SE32")
+
+NUTS3_codes <- c("AT333", "AT334", "AT335", "AT341", "AT342", "BE100", "BE211", "BE212", "BE213", "BE223", "BE224", "BE225", "BE231", "BE232", "BE233", "BE234", "BE235", "BE236", "BE241", "BE242", "BE251", "BE252", "BE253", "BE254", "BE255", "BE256", "BE257", "BE258", "BE310", "BE323", "BE328","BE329", "BE32A", "BE32B", "BE32C", "BE32D", "BE331", "BE332", "BE334", "BE335", "BE336", "BE341", "BE342", "BE343", "BE344", "BE345", "BE351", "BE352", "BE353", "BG311", "BG312", "BG313", "BG314", "BG315", "BG321", "BG322", "BG323", "BG324", "BG325", "BG331", "BG332", "BG333", "BG334", "BG341", "BG342", "BG343", "BG344", "BG411", "BG412", "BG413", "BG414", "BG415", "BG421", "BG422", "BG423", "BG424", "BG425", "CH011", "CH012", "CH013", "CH021", "CH022", "CH023", "CH024", "CH025", "CH031", "CH032", "CH033", "CH040", "CH051", "CH052", "CH053", "CH054", "CH055", "CH056", "CH057", "CH061", "CH062", "CH063", "CH064", "CH065", "CH066", "CH070", "CY000", "CZ010", "CZ020", "CZ031", "CZ032", "CZ041", "CZ042", "CZ051", "CZ052", "CZ053", "CZ063", "CZ064", "CZ071", "CZ072", "CZ080", "DE111", "DE112", "DE113", "DE114", "DE115", "DE116", "DE117", "DE118", "DE119", "DE11A", "DE11B", "DE11C", "DE11D", "DE121", "DE122", "DE123", "DE124", "DE125", "DE126", "DE127", "DE128", "DE129", "DE12A", "DE12B", "DE12C", "DE131", "DE132", "DE133", "DE134", "DE135", "DE136", "DE137", "DE138", "DE139", "DE13A", "DE141", "DE142", "DE143", "DE144", "DE145", "DE146", "DE147", "DE148", "DE149", "DE211", "DE212", "AL011", "AL012", "AL013", "AL014", "AL015", "AL021", "AL022", "AL031", "AL032", "AL033", "AL034", "AL035", "AT111", "AT112", "AT113", "AT121", "AT122", "AT123", "AT124", "AT125", "AT126", "AT127", "AT130", "AT211", "AT212", "AT213", "AT221", "AT222", "AT223", "AT224", "AT225", "AT226", "AT311", "AT312", "AT313", "AT314", "AT315", "AT321", "AT322", "AT323", "AT331", "AT332", "DE238", "DE239")
+
+NUTS3_codes <-c(NUTS3_codes, "DE23A", "DE241", "DE242", "DE243", "DE244", "DE245", "DE246", "DE247", "DE248", "DE249", "DE24A", "DE24B", "DE24C", "DE24D", "DE251", "DE252", "DE253", "DE254", "DE255", "DE256", "DE257", "DE258", "DE259", "DE25A", "DE25B", "DE25C", "DE261", "DE262", "DE263", "DE264", "DE265", "DE266", "DE267", "DE268", "DE269", "DE26A", "DE26B", "DEA5C", "DEB11", "DEB12", "DEB13", "DEB14", "DEB15", "DEB17", "DEB18", "DEB1A", "DEB1B", "DEB1C", "DEB1D", "DEB21", "DEB22", "DEB23", "DEB24", "DEB25", "DEB31", "DEB32", "DEB33", "DEB34", "DEB35", "DEB36", "DEB37", "DEB38", "DEB39", "DEB3A", "DEB3B", "DEB3C", "DEB3D", "DEB3E", "DEB3F", "DEB3G", "DEB3H", "DEB3I", "DEB3J", "DEB3K", "DEC01", "DEC02", "DEC03", "DEC04", "DEC05", "DEC06", "DED21", "DED2C", "DED2D", "DED2E", "DED2F", "DED41", "DED42", "DED43", "DED44", "DED45", "DED51", "DED52", "DED53", "DEE01", "DEE02", "DEE03", "DEE04", "DEE05", "DEE06", "DEE07", "DEE08", "DEE09", "DEE0A", "DEE0B", "DEE0C", "DEE0D", "DEE0E", "DEF01", "DEF02", "DEF03", "DEF04", "DEF05", "DEF06", "DEF07", "DEF08", "DEF09", "DEF0A", "DEF0B", "DEF0C", "DEF0D", "DEF0E", "DEF0F", "DEG01", "DEG02", "DE26C", "DE271", "DE272", "DE273", "DE274", "DE275", "DE276", "DE277", "DE278", "DE279", "DE27A", "DE27B", "DE27C", "DE27D", "DE27E", "DE300", "DE401", "DE402", "DE403", "DE404", "DE405", "DE406", "DE407", "DE408", "DE409", "DE40A", "DE40B", "DE40C", "DE40D", "DE40E", "DE40F", "DE40G", "DE40H", "DE40I", "DE501", "DE502", "DE600", "DE711", "DE712", "DE713", "DE714", "DE715", "DE716", "DE717", "DE718", "DE719", "DE71A", "DE71B", "DE71C", "DE71D", "DE71E", "DE721", "DE722", "DE723", "DE724", "DE725", "DE731", "DE732", "DE733", "DE734", "DE735", "DE736", "DE737", "DE803", "DE804", "DE80J", "DE80K", "DE80L", "DE80M", "DE80N", "DE80O", "DE911", "DE912", "DE913", "DE914", "DE916", "DE917", "DE918", "DE91A", "DE91B", "DE91C", "DE922", "DE923", "DE925", "DE926", "DE927", "DE928", "DE929", "DE931", "DE932", "DE933", "DE934", "DE935", "DE936", "DE937", "DE938", "DE939", "DE93A", "DE93B", "DE941", "DE942", "DE943", "DE944", "DE945", "DE946", "DE947", "DE948", "DE949", "DE94A", "DE94B", "DE94C", "DE94D")
+
+NUTS3_codes <-c(NUTS3_codes, "DE94E", "DE94F", "DE94G", "DE94H", "DEA11", "DEA12", "DEA13", "DEA14", "DEA15", "DEA16", "DEA17", "DEA18", "DEA19", "DEA1A", "DEA1B", "DEA1C", "DEA1D", "DEA1E", "DEA1F", "DEA22", "DEA23", "DEA24", "DEA26", "DEA27", "DEA28", "DEA29", "DEA2A", "DEA2B", "DEA2C", "DEA2D", "DEA31", "DEA32", "DEA33", "DEA34", "DEA35", "DEA36", "DEA37", "DEA38", "DEA41", "DEA42", "DEA43", "DEA44", "DEA45", "DEA46", "DEA47", "DEA51", "DEA52", "DEA53", "DEA54", "DEA55", "DEA56", "DEA57", "DEA58", "DEA59", "DEA5A", "DEA5B", "DE213", "DE214", "DE215", "DE216", "DE217", "DE218", "DE219", "DE21A", "DE21B", "DE21C", "DE21D", "DE21E", "DE21F", "DE21G", "DE21H", "DE21I", "DE21J", "DE21K", "DE21L", "DE21M", "DE21N", "DE221", "DE222", "DE223", "DE224", "DE225", "DE226", "DE227", "DE228", "DE229", "DE22A", "DE22B", "DE22C", "DE231", "DE232", "DE233", "DE234", "DE235", "DE236", "DE237", "FRD11", "FRD12", "FRD13", "FRD21", "FRD22", "FRE11", "FRE12", "FRE21", "FRE22", "FRE23", "FRF11", "FRF12", "FRF21", "FRF22", "FRF23", "FRF24", "FRF31", "FRF32", "FRF33", "FRF34", "FRG01", "FRG02", "FRG03", "FRG04", "FRG05", "FRH01", "FRH02", "FRH03", "FRH04", "FRI11", "FRI12", "FRI13", "FRI14", "FRI15", "FRI21", "FRI22", "FRI23", "FRI31", "FRI32", "FRI33", "FRI34", "FRJ11", "FRJ12", "FRJ13", "FRJ14", "FRJ15", "FRJ21", "FRJ22", "FRJ23", "FRJ24", "FRJ25", "FRJ26", "FRJ27", "FRJ28", "FRK11", "FRK12", "FRK13", "FRK14", "FRK21", "FRK22", "FRK23", "FRK24", "FRK25", "FRK26", "FRK27", "FRK28", "FRL01", "FRL02", "FRL03", "FRL04", "FRL05", "FRL06", "FRM01", "FRM02", "FRY10", "FRY20", "DEG03", "DEG05", "DEG06", "DEG07", "DEG09", "DEG0A", "DEG0C", "DEG0D", "DEG0E", "DEG0G", "DEG0J", "DEG0K", "DEG0L", "DEG0M", "DEG0Q", "DEG0R", "DEG0S", "DEG0T", "DEG0U", "DEG0V", "DK011", "DK012", "DK013", "DK014", "DK021", "DK022", "DK031", "DK032", "DK041", "DK042", "DK050", "EE001", "EE004", "EE008", "EE009", "EE00A", "EL301", "EL302", "EL303", "EL304", "EL305", "EL306", "EL307", "EL411", "EL412", "EL413", "EL421", "EL422", "EL431", "EL432", "EL433", "EL434", "EL511", "EL512", "EL513", "EL514", "EL515", "EL521", "EL522", "EL523", "EL524", "EL525", "EL526", "EL527")
+
+NUTS3_codes <-c(NUTS3_codes, "EL531", "EL532", "EL533", "EL541", "EL542", "EL543", "EL611", "EL612", "EL613", "EL621", "EL622", "EL623", "EL624", "EL631", "EL632", "EL633", "EL641", "EL642", "EL643", "EL644", "EL645", "EL651", "EL652", "EL653", "ES111", "ES112", "ES113", "ES114", "ES120", "ES130", "ES211", "ES212", "ES213", "ES220", "ES230", "ES241", "ES242", "ES243", "ES300", "ES411", "ES412", "ES413", "ES414", "ES415", "ES416", "ES417", "ES418", "ES419", "ES421", "ES422", "ES423", "ES424", "ES425", "ES431", "ES432", "ES511", "ES512", "ES513", "ES514", "ES521", "ES522", "ES523", "ES531", "ES532", "ES533", "ES611", "ES612", "ES613", "ES614", "ES615", "ES616", "ES617", "ES618", "ES620", "ES630", "ES640", "ES703", "ES704", "ES705", "ES706", "ES707", "ES708", "ES709", "FI196", "FI198", "FI199", "FI19A", "FI19B", "FI1B1", "FI1C1", "FI1C2", "FI1C5", "FI1C6", "FI1C7", "FI1D5", "FI1D7", "FI1D8", "FI1D9", "FI1DA", "FI1DB", "FI1DC", "FI200", "FR101", "FR102", "FR103", "FR104", "FR105", "FR106", "FR107", "FR108", "FRB01", "FRB02", "FRB03", "FRB04", "FRB05", "FRB06", "FRC11", "FRC12", "FRC13", "FRC14", "FRC21", "FRC22", "FRC23", "FRC24", "HU313", "HU321", "HU322", "HU323", "HU331", "HU332", "HU333", "IE041", "IE042", "IE051", "IE052", "IE053", "IE061", "IE062", "IE063", "IS001", "IS002", "ITC11", "ITC12", "ITC13", "ITC14", "ITC15", "ITC16", "ITC17", "ITC18", "ITC20", "ITC31", "ITC32", "ITC33", "ITC34", "ITC41", "ITC42", "ITC43", "ITC44", "ITC46", "ITC47", "ITC48", "ITC49", "NL415", "NL416", "NL421", "NL422", "NL423", "NO020", "NO060", "NO071", "NO072", "NO073", "NO081", "NO083", "NO084", "NO085", "NO092", "NO093", "NO094", "NO0A1", "NO0A2", "NO0A3", "NO0B1", "NO0B2", "PL213", "PL214", "PL217", "PL218", "PL219", "PL21A", "PL224", "PL225", "PL227", "PL228", "PL229", "PL22A", "PL22B", "PL22C", "PL411", "PL414", "PL415", "PL416", "PL417", "PL418", "PL424", "PL426", "PL427", "PL428", "PL431", "PL432", "PL514", "PL515", "PL516", "PL517", "PL518", "PL523", "PL524", "PL613", "PL616", "PL617", "PL618", "PL619", "PL621", "PL622", "PL623", "PL633", "PL634", "PL636", "PL637", "PL638", "PL711", "PL712", "ITC4A", "ITC4B", "ITC4C", "ITC4D")
+
+NUTS3_codes <-c(NUTS3_codes, "ITF11", "ITF12", "ITF13", "ITF14", "ITF21", "ITF22", "ITF31", "ITF32", "ITF33", "ITF34", "ITF35", "ITF43", "ITF44", "ITF45", "ITF46", "ITF47", "ITF48", "ITF51", "ITF52", "ITF61", "ITF62", "ITF63", "ITF64", "ITF65", "ITG11", "ITG12", "ITG13", "ITG14", "ITG15", "ITG16", "ITG17", "ITG18", "ITG19", "ITG2D", "ITG2E", "ITG2F", "ITG2G", "ITG2H", "ITH10", "ITH20", "ITH31", "ITH32", "ITH33", "ITH34", "ITH35", "ITH36", "ITH37", "ITH41", "ITH42", "ITH43", "ITH44", "ITH51", "ITH52", "ITH53", "ITH54", "ITH55", "ITH56", "ITH57", "ITH58", "ITH59", "ITI11", "ITI12", "ITI13", "ITI14", "ITI15", "ITI16", "ITI17", "ITI18", "ITI19", "ITI1A", "ITI21", "ITI22", "ITI31", "ITI32", "ITI33", "ITI34", "ITI35", "ITI41", "ITI42", "ITI43", "ITI44", "ITI45", "LI000", "LT011", "LT021", "LT022", "LT023", "LT024", "LT025", "LT026", "LT027", "LT028", "LT029", "LU000", "LV005", "LV009", "LV00A", "LV00B", "LV00C", "ME000", "MK001", "MK002", "MK003", "MK004", "MK005", "MK006", "MK007", "MK008", "MT001", "MT002", "NL112", "NL114", "NL115", "NL126", "NL127", "NL128", "NL131", "NL132", "NL133", "NL211", "NL212", "NL213", "NL221", "NL224", "NL225", "NL226", "NL230", "NL321", "NL323", "NL325", "NL327", "NL328", "NL32A", "NL32B", "NL341", "NL342", "NL350", "NL361", "NL362", "NL363", "NL364", "NL365", "NL366", "NL411", "NL414", "FRY30", "FRY40", "FRY50", "HR021", "HR022", "HR023", "HR024", "HR025", "HR026", "HR027", "HR028", "HR031", "HR032", "HR033", "HR034", "HR035", "HR036", "HR037", "HR050", "HR061", "HR062", "HR063", "HR064", "HR065", "HU110", "HU120", "HU211", "HU212", "HU213", "HU221", "HU222", "HU223", "HU231", "HU232", "HU233", "HU311", "HU312", "TR412", "TR413", "TR421", "TR422", "TR423", "TR424", "TR425", "TR510", "TR521", "TR522", "TR611", "TR612", "TR613", "TR621", "TR622", "TR631", "TR632", "TR633", "TR711", "TR712", "TR713", "TR714", "TR715", "TR721")
+
+NUTS3_codes <-c(NUTS3_codes, "TR722", "TR723", "TR811", "TR812", "TR813", "TR821", "TR822", "TR823", "TR831", "TR832", "TR833", "TR834", "TR901", "TR902", "TR903", "TR904", "TR905", "TR906", "TRA11", "TRA12", "TRA13", "TRA21", "TRA22", "TRA23", "TRA24", "TRB11", "TRB12", "TRB13", "TRB14", "TRB21", "TRB22", "TRB23", "TRB24", "TRC11", "TRC12", "TRC13", "TRC21", "TRC22", "TRC31", "TRC32", "TRC33", "TRC34", "PL713", "PL714", "PL715", "PL721", "PL722", "PL811", "PL812", "PL814", "PL815", "PL821", "PL822", "PL823", "PL824", "PL841", "PL842", "PL843", "PL911", "PL912", "PL913", "PL921", "PL922", "PL923", "PL924", "PL925", "PL926", "PT111", "PT112", "PT119", "PT11A", "PT11B", "PT11C", "PT11D", "PT11E", "PT150", "PT191", "PT192", "PT193", "PT194", "PT195", "PT196", "PT1A0", "PT1B0", "PT1C1", "PT1C2", "PT1C3", "PT1C4", "PT1D1", "PT1D2", "PT1D3", "PT200", "PT300", "RO111", "RO112", "RO113", "RO114", "RO115", "RO116", "RO121", "RO122", "RO123", "RO124", "RO125", "RO126", "RO211", "RO212", "RO213", "RO214", "RO215", "RO216", "RO221", "RO222", "RO223", "RO224", "RO225", "RO226", "RO311", "RO312", "RO313", "RO314", "RO315", "RO316", "RO317", "RO321", "RO322", "RO411", "RO412", "RO413", "RO414", "RO415", "RO421", "RO422", "RO423", "RO424", "RS110", "RS121", "RS122", "RS123", "RS124", "RS125", "RS126", "RS127", "RS211", "RS212", "RS213", "RS214", "RS215", "RS216", "RS217", "RS218", "RS221", "RS222", "RS223", "RS224", "RS225", "RS226", "RS227", "RS228", "RS229", "SE110", "SE121", "SE122", "SE123", "SE124", "SE125", "SE211", "SE212", "SE213", "SE214", "SE221", "SE224", "SE231", "SE232", "SE311", "SE312", "SE313", "SE321", "SE322", "SE331", "SE332", "SI031", "SI032", "SI033", "SI034", "SI035", "SI036", "SI037", "SI038", "SI041", "SI042", "SI043", "SI044", "SK010", "SK021", "SK022", "SK023", "SK031", "SK032", "SK041", "SK042", "TR100", "TR211", "TR212", "TR213", "TR221", "TR222", "TR310", "TR321", "TR322", "TR323", "TR331", "TR332", "TR333", "TR334", "TR411", "XK001", "XK002", "XK003", "XK004", "XK005", "XK006", "XK007")
+
+NUTS.computation <- function(s){
+  if(substr(s,1,2) %in% c("EU","EA","EF","CC","OE","G2","G7"))  return(s)
+  if(nchar(s)==2 & s %in% NUTS0_codes) return("0")
+  if(nchar(s)==3 & s %in% NUTS1_codes) return("1")
+  if(nchar(s)==4 & s %in% NUTS2_codes) return("2")
+  if(nchar(s)==5 & s %in% NUTS3_codes) return("3")
+  return("OTHERS")
+}
+```
+
+
+```{r}
+for(col in colnames(data)){
+  if(is.numeric(data[[col]])) next
+  if(col=="TIME_PERIOD"){
+    cat("\nCOLUMNA: TIME_PERIOD \n")
+    print(
+      data %>%
+        group_by(TIME_PERIOD) %>%
+        summarise(N.observ=dplyr::n())%>%
+        as.matrix() %>%
+        noquote()
+    )
+    next
+  }
+ if(col=="geo"){
+    cat("\nCONTABILIZACIÓN Nº REGIONES NUTS A PARTIR DE LA COLUMNA geo\n")
+    print(
+      tibble(
+        NUTS=sapply(unique(data[[col]]),NUTS.computation)
+      ) %>%
+        group_by(NUTS) %>%
+        summarise(`Number of Regions`=dplyr::n()) %>%
+        as.matrix() %>%
+        noquote()
+    )
+    next
+ }
+  tb <-  data %>%
+    left_join(get_eurostat_dic(col)%>%rename(!!col := code_name),
+              by=col) %>%
+    group_by(!!sym(col),full_name)%>%
+    summarise(N.Observ=dplyr::n()) %>%
+    relocate(N.Observ,.before = full_name)%>%
+    arrange(desc(N.Observ)) %>%
+    mutate(full_name=ifelse(nchar(full_name)<41,full_name,paste0(substr(full_name,1,40),"..")))
+    
+  texto <- paste0("COLUMNA: ",col)
+  if(nrow(tb)>50){
+    texto <- paste0(texto," (",nrow(tb)," opciones, se imprimen 50)")
+    tb <- head(tb,50)
+  }
+  cat(texto,"\n")
+  
+  tb %>% 
+    as.matrix() %>%
+    noquote() %>%
+    print()
+}
+```
+
+
+
+ **Percentiles de la distribución de tamaños de las series temporales**:
+
+  Observamos que el máximo tamaño de las series temporales es 29 y además todos los percentiles son mayores que 10.
+  
+
+```{r}
+vars <- colnames(data)[1:(ncol(data)-2)]
+
+data.series <- data %>%
+  group_by(across(all_of(vars))) 
+
+data.series.fechas <- data.series %>% 
+  summarise(N.fechas=dplyr::n())
+```
+
+```{r}
+percentiles <- tibble(min=min(data.series.fechas$N.fechas))
+percentiles <- percentiles %>% mutate(min=min(data.series.fechas$N.fechas))
+percentiles <- percentiles %>% mutate(p10=quantile(data.series.fechas$N.fechas, 0.1))
+percentiles <- percentiles %>% mutate(p25=quantile(data.series.fechas$N.fechas, 0.25))
+percentiles <- percentiles %>% mutate(p50=quantile(data.series.fechas$N.fechas, 0.50))
+percentiles <- percentiles %>% mutate(p75=quantile(data.series.fechas$N.fechas, 0.75))
+percentiles <- percentiles %>% mutate(p90=quantile(data.series.fechas$N.fechas, 0.9))
+percentiles <- percentiles %>% mutate(max=max(data.series.fechas$N.fechas))
+
+percentiles
+```
+
+ **Distribución del nº de observaciones por regiones**
+ 
+  Observamos que, para España y Canarias, el nº de observaciones supera el `p75` de la distribución.
+
+```{r}
+data.geo <- data %>%
+  group_by(geo)%>%
+  summarise(N.Observ=dplyr::n())
+```
+
+```{r}
+percentiles <- tibble(min=min(data.geo$N.Observ))
+percentiles <- percentiles %>% mutate(min=min(data.geo$N.Observ))
+percentiles <- percentiles %>% mutate(p10=quantile(data.geo$N.Observ, 0.1))
+percentiles <- percentiles %>% mutate(p25=quantile(data.geo$N.Observ, 0.25))
+percentiles <- percentiles %>% mutate(p50=quantile(data.geo$N.Observ, 0.50))
+percentiles <- percentiles %>% mutate(p75=quantile(data.geo$N.Observ, 0.75))
+percentiles <- percentiles %>% mutate(p90=quantile(data.geo$N.Observ, 0.9))
+percentiles <- percentiles %>% mutate(max=max(data.geo$N.Observ))
+
+percentiles
+```
+
+**Nº de observaciones en España/Canarias**
+```{r}
+LocalRegionsFullNames <- c("Spain","Canarias","Canarias","El Hierro","Fuerteventura","Gran Canaria",
+  "La Gomera","La Palma","Lanzarote","Tenerife")
+
+LocalRegionsCodes <- c("ES","ES7","ES70","ES703","ES704","ES705","ES706","ES707","ES708","ES709")
+
+LocalRegions <- tibble(
+  geo=LocalRegionsCodes,
+  full_name=LocalRegionsFullNames
+)
+
+data.geo %>%
+  filter(geo %in% LocalRegionsCodes) %>%
+  left_join(LocalRegions,by="geo") %>%
+  relocate(full_name,.after = geo)
+```
+
+
+**Combinaciones existentes de las variables categóricas**: 
+
+  Observamos 45 combinaciones posibles con un número de observacions significativas, lo cual dificultaría el análisis del dataset. Por esa razón sería conveniente eliminar valores posibles de las variables categóricas para disminuir la complejidad.
+  
+```{r}
+vars <- colnames(data)[1:(ncol(data)-3)]
+vars <- vars[vars != "age"]
+vars <- vars[vars != "sex"]
+
+data.combinaciones <- data %>%
+  group_by(across(all_of(vars))) 
+
+data.combinaciones %>%
+  summarise(N.observ=dplyr::n(),
+            init.date=min(TIME_PERIOD),
+            end.date=max(TIME_PERIOD)) %>%
+  arrange(desc(N.observ)) %>% 
+  print(n=50)
+```
+
+
+```{r}
+data.fechas <- data %>%
+  pivot_wider(names_from = TIME_PERIOD,values_from = values,names_sort = FALSE) %>%
+  left_join(get_eurostat_dic("geo"), join_by(geo==code_name)) %>%
+  relocate(full_name,.after=geo)%>%
+  mutate(NUTS=sapply(geo,NUTS.computation)) %>%
+  relocate(NUTS)  %>%
+  mutate(geo2=substr(geo,1,2)) %>% 
+  left_join(get_eurostat_dic("geo")%>%rename(country=full_name),join_by(geo2==code_name)) %>%
+  select(-geo2) %>% 
+  rename(region=full_name) %>%
+  relocate(country,.after = NUTS) %>%
+  arrange(NUTS,country,geo)
+```
+
+**Visualización España/Canarias (máximo 60 columnas y 1000 filas por región)**
+
+```{r}
+posRegion <- which(colnames(data.fechas) == "region")
+Ncol <- ncol(data.fechas)
+posSelect <- 1:Ncol 
+if(Ncol>60) posSelect <- unique(c(1:posRegion,(Ncol-60):Ncol))
+
+data.fechas %>%
+  select(posSelect) %>% 
+  filter(geo %in% LocalRegionsCodes) %>% 
+  group_by(geo) %>%
+  slice_head(n = 1000) %>%
+  ungroup() %>% 
+  relocate(region) %>% 
+  datatable(
+  extensions = 'FixedColumns',
+  options = list(
+    scrollX = TRUE,  
+    scrollY = "400px", 
+    paging = FALSE,     
+    fixedColumns = list(leftColumns = 1) 
+  ),
+  class = "stripe hover nowrap",  
+  rownames = FALSE  
+)
+```
+
+ **Cuestiones a tener en cuenta**:
+  Observamos que hay muchos datos faltantes para los primeros años, ya que el número de observaciones registradas para esos años era escasa; pero ante ese
+inconveniente simplemente podemos trabajar con los datos a partir del año 2000, ya que aún tendríamos datos suficientes para hacer un estudio del empleo en cada región. 
+
+
+### Dataset secundario ("demo_r_pjanaggr3").
+```{r,echo=FALSE}
+dataset.name <- "demo_r_pjanaggr3"
+```
+ **Datos básicos del dataset **:
+```{r}
+datasets <- read.xlsx("Eurostat.datasets.xlsx") %>%
+  as_tibble()  %>% 
+  filter(code==dataset.name)
+```
+
+* **code**: `r datasets$code[1]`
+* **title**: `r datasets$title[1]`
+* **last.update.of.data**: `r datasets$last.update.of.data[1]`
+<!-- * **last.table.structure.change**: `r datasets$last.table.structure.change[1]` --> 
+* **data.start**: `r datasets$data.start[1]`
+* **data.end**: `r datasets$data.end[1]`
+* **values**: `r format(datasets$values[1],big.mark = ".")`
+
+ **Resumen**: Proporciona datos de población anual desglosados por grupos de edad y sexo para las regiones europeas de nivel NUTS 3. Los datos están referenciados al 1 de enero de cada año y permiten un análisis detallado sobre la distribución de la población por edad (por ejemplo, jóvenes, adultos y mayores) y sexo en las diferentes regiones de Europa.
+ 
+**Utilidad**: Este dataset es fundamental para facilitar comparaciones de empleo regionales. En particular, es utilizado como base para calcular indicadores clave, como la tasa de empleo de la población activa por sector. Al combinar los datos de población con las estadísticas de empleo, podemos obtener una visión precisa de qué porcentaje de la población en edad de trabajar está empleada, desglosado por sector y región. Esto es especialmente útil para análisis económicos y de política laboral a nivel local, permitiendo tomar decisiones informadas sobre desarrollo económico y social.
+
+```{r,results='hide'}
+data <- get_eurostat(dataset.name, time_format = "date") %>%
+  as_tibble() %>%
+  arrange(TIME_PERIOD,geo)
+```
+
+
+```{r}
+str(data)
+```
+
+
+**Descripción variables categóricas**:
+
+  <u>freq</u>: frecuencia con la que se toman las observaciones. 
+  Tiene un único valor "A", que corresponde a datos anuales.
+
+  <u>unit</u>: unidad de medida de la observación. 
+  Tiene un valor único: "NR", cuyo significado es número de personas (number).
+  
+  <u>sex</u>: sexo de la población.
+  
+  -"T": Total.
+  
+  -"M": Hombres.
+  
+  -"F": Mujeres.
+  
+  <u>age</u>: rango de edad de la población.
+  
+  -"TOTAL": De 0 a 100 años.
+  
+  -"UNK": Desconocido.
+  
+  -"Y15-64": De 15 a 64 años.
+  
+  -"Y_GE65": 65 años o más.
+  
+  -"Y_LT15": Menos de 15 años.
+
+  <u>geo</u>: región geográfica (NUTS 3). 
+
+  <u>TIME_PERIOD</u>: fechas de las observaciones. 
+  Existen observaciones desde 1990 hasta 2024.
+  
+  
+```{r}
+for(col in colnames(data)){
+  if(is.numeric(data[[col]])) next
+  if(col=="TIME_PERIOD"){
+    cat("\nCOLUMNA: TIME_PERIOD \n")
+    print(
+      data %>%
+        group_by(TIME_PERIOD) %>%
+        summarise(N.observ=dplyr::n())%>%
+        as.matrix() %>%
+        noquote()
+    )
+    next
+  }
+ if(col=="geo"){
+    cat("\nCONTABILIZACIÓN Nº REGIONES NUTS A PARTIR DE LA COLUMNA geo\n")
+    print(
+      tibble(
+        NUTS=sapply(unique(data[[col]]),NUTS.computation)
+      ) %>%
+        group_by(NUTS) %>%
+        summarise(`Number of Regions`=dplyr::n()) %>%
+        as.matrix() %>%
+        noquote()
+    )
+    next
+ }
+  tb <-  data %>%
+    left_join(get_eurostat_dic(col)%>%rename(!!col := code_name),
+              by=col) %>%
+    group_by(!!sym(col),full_name)%>%
+    summarise(N.Observ=dplyr::n()) %>%
+    relocate(N.Observ,.before = full_name)%>%
+    arrange(desc(N.Observ)) %>%
+    mutate(full_name=ifelse(nchar(full_name)<41,full_name,paste0(substr(full_name,1,40),"..")))
+    
+  texto <- paste0("COLUMNA: ",col)
+  if(nrow(tb)>50){
+    texto <- paste0(texto," (",nrow(tb)," opciones, se imprimen 50)")
+    tb <- head(tb,50)
+  }
+  cat(texto,"\n")
+  
+  tb %>% 
+    as.matrix() %>%
+    noquote() %>%
+    print()
+}
+```
+  
+ **Propósito**:
+  Este dataset servirá de apoyo para poder calcular el porcentaje de la población activa (aquellos en edad de trabajar) que está empleada en cada sector y realizar predicciones basadas en dicho criterio.
+  
+  
+### Dataset secundario ("lfst_r_lfe2emprt").
+```{r,echo=FALSE}
+dataset.name <- "lfst_r_lfe2emprt"
+```
+ **Datos básicos del dataset **:
+```{r}
+datasets <- read.xlsx("Eurostat.datasets.xlsx") %>%
+  as_tibble()  %>% 
+  filter(code==dataset.name)
+```
+
+* **code**: `r datasets$code[1]`
+* **title**: `r datasets$title[1]`
+* **last.update.of.data**: `r datasets$last.update.of.data[1]`
+<!-- * **last.table.structure.change**: `r datasets$last.table.structure.change[1]` --> 
+* **data.start**: `r datasets$data.start[1]`
+* **data.end**: `r datasets$data.end[1]`
+* **values**: `r format(datasets$values[1],big.mark = ".")`
+
+ **Resumen**: Este dataset recoge las tasas de empleo (% de población empleada) en las regiones de nivel NUTS 2 de los países de la Unión Europea y algunos países asociados. Los datos están desglosados por sexo y grupo de edad, lo que permite un análisis detallado de la situación laboral de diferentes segmentos de la población dentro de cada región.
+La tasa de empleo se define como el porcentaje de personas empleadas respecto al total de la población del mismo grupo de edad y sexo. Se trata de un indicador estructural clave para el análisis del mercado laboral a nivel regional.
+
+  **Utilidad**: Permite comparar la integración laboral de distintos grupos (mujeres, jóvenes, mayores) entre regiones NUTS 2, siendo fundamental para el diseño de políticas de empleo, formación y cohesión social.
+  Ayuda a detectar desigualdades territoriales en las tasas de empleo.
+  
+
+```{r,results='hide'}
+data <- get_eurostat(dataset.name, time_format = "date") %>%
+  as_tibble() %>%
+  arrange(TIME_PERIOD,geo)
+```
+
+
+```{r}
+str(data)
+```
+
+
+**Descripción variables categóricas**:
+
+  <u>freq</u>: frecuencia con la que se toman las observaciones. 
+  Tiene un único valor "A", que corresponde a datos anuales.
+
+  <u>unit</u>: unidad de medida de la observación. 
+  Tiene un valor único: "PC", cuyo significado es porcentaje (%).
+  
+  <u>sex</u>: sexo de la población.
+  
+  -"T": Total.
+  
+  -"M": Hombres.
+  
+  -"F": Mujeres.
+  
+  <u>age</u>: rango de edad de la población.
+  
+  -"Y15-24": De 15 a 24 años.
+  
+  -"Y15-64": De 15 a 64 años.
+  
+  -"Y15-74": De 15 a 74 años.
+  
+  -"Y20-64": De 20 a 64 años.
+  
+  -"Y25-34": De 25 a 34 años.
+  
+  -"Y25-64": De 25 a 64 años.
+  
+  -"Y35-44": De 35 a 44 años.
+  
+  -"Y45-54": De 45 a 54 años.
+  
+  -"Y55-64": De 55 a 64 años.
+  
+  -"Y_GE15": 15 años o más.
+  
+  -"Y_GE25": 25 años o más.
+  
+  -"Y_GE65": 65 años o más.
+
+  <u>geo</u>: región geográfica (NUTS 2).
+
+  <u>TIME_PERIOD</u>: fechas de las observaciones. 
+  Existen observaciones desde 1999 hasta 2024.
+  
+  
+```{r}
+for(col in colnames(data)){
+  if(is.numeric(data[[col]])) next
+  if(col=="TIME_PERIOD"){
+    cat("\nCOLUMNA: TIME_PERIOD \n")
+    print(
+      data %>%
+        group_by(TIME_PERIOD) %>%
+        summarise(N.observ=dplyr::n())%>%
+        as.matrix() %>%
+        noquote()
+    )
+    next
+  }
+ if(col=="geo"){
+    cat("\nCONTABILIZACIÓN Nº REGIONES NUTS A PARTIR DE LA COLUMNA geo\n")
+    print(
+      tibble(
+        NUTS=sapply(unique(data[[col]]),NUTS.computation)
+      ) %>%
+        group_by(NUTS) %>%
+        summarise(`Number of Regions`=dplyr::n()) %>%
+        as.matrix() %>%
+        noquote()
+    )
+    next
+ }
+  tb <-  data %>%
+    left_join(get_eurostat_dic(col)%>%rename(!!col := code_name),
+              by=col) %>%
+    group_by(!!sym(col),full_name)%>%
+    summarise(N.Observ=dplyr::n()) %>%
+    relocate(N.Observ,.before = full_name)%>%
+    arrange(desc(N.Observ)) %>%
+    mutate(full_name=ifelse(nchar(full_name)<41,full_name,paste0(substr(full_name,1,40),"..")))
+    
+  texto <- paste0("COLUMNA: ",col)
+  if(nrow(tb)>50){
+    texto <- paste0(texto," (",nrow(tb)," opciones, se imprimen 50)")
+    tb <- head(tb,50)
+  }
+  cat(texto,"\n")
+  
+  tb %>% 
+    as.matrix() %>%
+    noquote() %>%
+    print()
+}
+```
+
+  
+ **Propósito**:
+  El desglose por sexo y edad será de utilidad para desagregar el nivel de empleo en función de tales variables con el fin de analizar la equidad laboral.
+  
+  **Inconvenientes**:
+  Este dataset alcanza como máximo territorios incluidos en NUTS 2, por lo tanto, deberemos realizar una aproximación a la hora de adentrarnos en NUTS 3.
+
+### Datos OWID (Our World in Data).
+
+```{r}
+datos_OWID <- read_csv("KEY_INDICATORS.csv") %>% as_tibble()
+datos_OWID
+```
+
+* **title**: `Key Indicators from OWID for Europe`
+* **data.start**: `2000`
+* **data.end**: `2024`
+* **author**: `Javier Ruano Hérnandez`
+* **source**: `OWID (Our World in Data)`
+
+ **Resumen**: Este dataset recoge una selección de indicadores clave socioeconómicos y demográficos —como población, edad media, esperanza de vida, fertilidad, PIB per cápita, productividad, horas trabajadas, índice de desarrollo humano (IDH) y emisiones de CO₂ per cápita—, recopilados y combinados de forma manual a partir de las fuentes originales de OWID para garantizar su coherencia y comparabilidad a nivel de país.
+
+```{r}
+str(datos_OWID %>% arrange(Country, Year))
+```
+
+**Descripción variables categóricas**:
+
+  <u>geo</u>: región geográfica (NUTS 0).
+  
+  <u>Country</u>: nombre del país.
+
+  <u>Year</u>: año de las observaciones. 
+  Existen observaciones desde 2000 hasta 2024.
+  
+**Indicadores clave**:
+
+  <u>population</u> = población
+
+  <u>median_age</u> = edad media
+
+  <u>life_expectancy</u> = esperanza de vida
+
+  <u>GDP_per_capita</u> = PIB per cápita
+
+  <u>working_hours_per_year</u> = horas trabajadas anuales
+
+  <u>productivity</u> = productividad
+
+  <u>human_development_index</u> = índice de desarrollo humano (IDH)
+
+  <u>only_basic_education</u> = solo educación básica
+
+  <u>till_secondary_education</u> = hasta educación secundaria
+
+  <u>tertiary_education</u> = educación terciaria/universitaria
+
+  <u>gender_wage_gap</u> = brecha salarial de género
+
+  <u>immigrant_share_of_population</u> = porcentaje de población inmigrante
+
+  <u>fertility_rate</u> = tasa de fertilidad
+
+  <u>extreme_poverty_share</u> = porcentaje de pobreza extrema
+
+  <u>extreme_poverty_number</u> = número de personas en pobreza extrema
+
+  <u>prevalence_undernourishment_share</u> = porcentaje de desnutrición
+
+  <u>education_expenditure_share_gdp</u> = porcentaje del PIB en educación
+
+  <u>healthcare_expenditure_share_gdp</u> = porcentaje del PIB en sanidad
+
+  <u>land_use_in_hectares</u> = uso de la tierra en hectáreas
+
+  <u>emissions_total_per_capita</u> = emisiones totales per cápita
+  
+ **Propósito**: Comparar y analizar la relación entre las dinámicas del empleo y variables fundamentales de desarrollo económico, bienestar y sostenibilidad a escala europea. Facilitar el estudio de correlaciones (ej. empleo vs. PIB, empleo vs. productividad) y el análisis multivariante para identificar patrones de convergencia o divergencia entre los estados miembros de la UE.
+  
+**Inconvenientes:** Disponibilidad temporal y de cobertura desigual: No todos los indicadores están disponibles para todos los países y todos los años del período 2000-2024. Existen valores NA (no disponibles).
+  
+  Indicadores con baja variabilidad en el contexto europeo: Algunas variables, como la prevalence_undernourishment_share o el extreme_poverty_number, presentan valores muy bajos o nulos en la mayoría de países europeos, lo que reduce su utilidad estadística para discriminar entre ellos en este contexto específico.
+  
+  
+### Datos ISTAC (Instituto Canario de Estadística).
+
+```{r}
+insercion <- read_csv("INSERCION_LABORAL.csv") %>% as_tibble() %>% select(-"...1" )
+insercion
+```
+
+* **title**: `Inserción Laboral FP VS. Grado Universitario (Canarias)`
+* **data.start**: `2018`
+* **data.end**: `2023`
+* **author**: `Javier Ruano Hérnandez`
+* **source**: `ISTAC (Instituto Canario de Estadística)`
+
+ **Resumen**: Este dataset recoge datos de inserción laboral de las principales ramas de la enseñanza, tanto de Formación profesional como de Grado Universitario.
+
+```{r}
+str(insercion %>% arrange(RAMA_ENSENIANZA_CODE, TIME_PERIOD_CODE))
+```
+
+ **Descripción variables categóricas**:
+ 
+  <u>RAMA_ENSENIANZA_CODE</u>: nombre de la rama de enseñanza:
+  
+  "ARTES_HUMANIDADES" 
+  
+  "CIENCIAS"
+  
+  "CIENCIAS_SALUD"    
+  
+  "CIENCIAS_SOCIALES_JURIDICAS"
+  
+  "INGENIERIA_ARQUITECTURA"    
+
+
+  <u>TIME_PERIOD_CODE</u>: año de las observaciones. 
+  Existen observaciones desde 2018 hasta 2023.
+   
+ **Variables de interés**:
+ 
+  <u>TASA_FP</u> = Tasa de inserción laboral para titulados de Formación Profesional.
+
+  <u>TASA_GRADO</u> = Tasa de inserción laboral para graduados universitarios.
+  
+ **Propósito**: Comparar la empleabilidad relativa de dos vías formativas clave (FP y Universidad) en el mercado laboral canario, lo que permite: identificar qué ramas de enseñanza ofrecen mejores oportunidades de inserción laboral según el nivel formativo; analizar la adecuación entre la oferta formativa y las necesidades del tejido productivo canario; y evaluar la evolución temporal de la empleabilidad por ramas, detectando tendencias emergentes.
+  
+ **Inconvenientes:** Agrupación por equivalencia subjetiva: No existe una correspondencia oficial uno-a-uno entre ciclos de FP y grados universitarios. La agrupación de titulaciones en estas cinco ramas amplias se ha realizado a criterio personal basado en similitudes temáticas, lo que puede ocultar diferencias específicas entre titulaciones concretas.
+  
+
+```{r}
+empleo_municipios_IC <- read_csv("EMPLEO_MUNICIPIOS.csv") %>% as_tibble() %>% select(-"...1")
+empleo_municipios_IC
+```
+
+* **title**: `Empleo por municipios (Canarias)`
+* **data.year**: `2024`
+* **source**: `ISTAC (Instituto Canario de Estadística)`
+
+ **Resumen**: Este dataset recoge diferentes medidas de empleo de cada municipio en Canarias, como la población ocupada, la población en búsqueda activa de empleo, la tasa de paro y la tasa de asalariados, tanto por sexo como total.
+
+```{r}
+str(empleo_municipios_IC %>% arrange(label))
+```
+
+ **Descripción variables categóricas**:
+ 
+  <u>label</u>: nombre del municipio.
+  
+  <u>geocode</u>: código postal del municipio.
+
+  <u>time_period</u>: año de las observaciones. 
+  Únicamente 2024.
+  
+  <u>geom</u>: polígonos en el espacio de los municipios.
+  
+ **Variables de interés**:
+  
+  <u>pocu_t</u> = población ocupada total
+
+  <u>pocu_m</u> = población ocupada hombres
+
+  <u>pocu_f</u> = población ocupada mujeres
+
+  <u>psel_t</u> = población en búsqueda activa de empleo total
+
+  <u>psel_m</u> = población en búsqueda activa de empleo hombres
+
+  <u>psel_f</u> = población en búsqueda activa de empleo mujeres
+
+  <u>tpar_t</u> = tasa de paro total (%)
+
+  <u>tpar_m</u> = tasa de paro hombres (%)
+
+  <u>tpar_f</u> = tasa de paro mujeres (%)
+
+  <u>tsal_t</u> = tasa de asalariados total (%)
+
+  <u>tsal_m</u> = tasa de asalariados hombres (%)
+
+  <u>tsal_f</u> = tasa de asalariados mujeres (%)
+  
+ **Propósito**: Realizar un análisis de micro-territorio para identificar las marcadas disparidades intrainsulares en el mercado laboral canario, contrastando los dinámicos municipios turísticos con las áreas rurales menos favorecidas. Además, posibilita un análisis detallado de la segregación de género a escala local, examinando las brechas en ocupación, paro y asalariados entre hombres y mujeres en cada municipio para detectar patrones territoriales específicos de desigualdad.
+  
+ **Aspectos a incluir**: Calcular temp_t, temp_m, temp_f, es decir, la tasa de empleo de cada municipio, a partir de la tasa de paro.
+  
+  
+### Datos OBECAN (Observatorio Canario de Empleo y Formación Profesional)
+
+```{r}
+contratos_IC <- read_csv("CONTRATOS_2018_2024.csv") %>% as_tibble() %>% select(-año, -mes)
+contratos_IC
+```
+
+* **title**: `Contratos por islas (Canarias)`
+* **data.start**: `2018`
+* **data.end**: `2024`
+* **source**: `OBECAN (Observatorio Canario de Empleo y Formación Profesional)`
+
+ **Resumen**: Este dataset recoge el número de contratos por tipo de forma mensual, en base al sexo y la edad.
+
+```{r}
+str(contratos_IC %>% arrange(isla, fecha))
+```
+
+ **Descripción variables categóricas**:
+ 
+  <u>isla</u>: nombre de la isla.
+  
+  <u>Tipo.Contrato</u>: tipo de contrato:
+  
+  "Conversión a Indefinido"
+  
+  "Indefinido" 
+
+  "Temporal Tiempo Completo"
+  
+  "Temporal Tiempo Parcial" 
+  
+  <u>sexo</u>: sexo de la persona contratada ("Hombres"|"Mujeres").
+  
+  <u>edad</u>: rango de edad de la persona contratada:
+  
+  "Menor de 25"
+  
+  "Entre 25 y 44" 
+
+  "45 o más"
+  
+  <u>fecha</u>: año y mes de las observaciones. 
+  Desde 2018-01 hasta 2024-01.
+  
+ **Variables de interés**:
+  
+  <u>Contratos</u> = número de contratos realizados ese mes
+
+ **Propósito**: Analizar el impacto inmediato y la evolución de la reforma laboral de 2022 en el mercado de trabajo canario, mediante el seguimiento detallado de la tipología contractual (indefinido vs. temporal) desglosado por islas, sexo y grupos de edad. Permite cuantificar el cambio estructural hacia una mayor estabilidad laboral y evaluar diferencias en la aplicación de la reforma entre sectores económicos y territorios del archipiélago.
+  
+
+## Preparación de los datos
+
+```{verbatim,results='hide',echo=FALSE}
+nama_10r_3empers <- get_eurostat("nama_10r_3empers", time_format = "date") %>%
+  as_tibble() %>%
+  mutate(TIME_PERIOD = as.numeric(substr(TIME_PERIOD, 1, 4))) %>%
+  arrange(geo, TIME_PERIOD) %>%
+  select(-unit, -freq) %>%
+  filter(TIME_PERIOD >= 2000) %>%
+  rename(employment = values)
+
+demo_r_pjanaggr3 <- get_eurostat("demo_r_pjanaggr3", time_format = "date") %>%
+  as_tibble() %>%
+  mutate(TIME_PERIOD = as.numeric(substr(TIME_PERIOD, 1, 4))) %>%
+  arrange(geo, TIME_PERIOD) %>%
+  select(-unit, -freq) %>%
+  filter(TIME_PERIOD >= 2000, age == "Y15-64", sex == "T") %>%
+  select(-age, -sex) %>%
+  rename(working_age_population = values)
+
+lfst_r_lfe2emprt <- get_eurostat("lfst_r_lfe2emprt", time_format = "date") %>%
+  as_tibble() %>%
+  mutate(TIME_PERIOD = as.numeric(substr(TIME_PERIOD, 1, 4))) %>%
+  select(-freq, -unit) %>%
+  arrange(geo, TIME_PERIOD) %>%
+  filter(age %in% c("Y15-24","Y25-34","Y35-44","Y45-54","Y55-64", "Y15-64", "Y_GE65"), TIME_PERIOD >= 2000) %>%
+  rename(emp_rate = values)
+
+NUTS <- read_csv('http://ctim.es/AEDV/data/eurostac_real_nuts.csv') %>%
+  as_tibble()
+
+EuropeGroups <- read.xlsx('http://ctim.es/AEDV/data/EuropeGroups.xlsx') %>%
+  as_tibble() %>%
+  select(-nombre)
+  
+nace_r2 <- read.xlsx('nace_r2.xlsx') %>%
+  as_tibble()
+
+EMPLEO <- nama_10r_3empers %>%
+  left_join(demo_r_pjanaggr3, by = c("geo", "TIME_PERIOD")) %>%
+  mutate(emp_per_working_age = employment * 1000 / working_age_population) %>%
+  left_join(EuropeGroups, by = "geo") %>%
+  left_join(NUTS, by= "geo") %>%
+  select(-cultural_group, -euro, -Schengen) %>%
+  select(NUTS, geo, full_name, EU27_2020, geographic_group , TIME_PERIOD, everything()) %>%
+  left_join(nace_r2,by="nace_r2") %>%
+  relocate(nace_r2.name,.after=nace_r2)
+
+NUTS2 <- NUTS %>%
+  filter(NUTS == 2) %>%
+  select(geo2 = geo, full_name2= full_name) %>%
+  arrange(geo2)
+
+NUTS3 <- NUTS %>%
+  filter(NUTS == 3) %>%
+  select(geo, full_name) %>%
+  arrange(geo)
+
+NUTS3_NUTS2 <- NUTS3 %>%
+  mutate(prefix = substr(geo, 1, nchar(NUTS2$geo2[1]))) %>%
+  left_join(NUTS2 %>% mutate(prefix = geo2), by = "prefix") %>%
+  select(NUTS2 = geo2, NUTS3 = geo, full_name)
+
+emp_rates_NUTS3 <- NUTS3_NUTS2 %>%
+  left_join(lfst_r_lfe2emprt, by = c("NUTS2" = "geo"), relationship = "many-to-many") %>%
+  select(NUTS3, sex, age, TIME_PERIOD, emp_rate)
+
+emp_rates_NUTS0..2 <- lfst_r_lfe2emprt %>%
+  mutate(NUTS3 = geo) %>%
+  select(NUTS3, sex, age, TIME_PERIOD, emp_rate)
+
+TASA_EMPLEO <- bind_rows(emp_rates_NUTS0..2, emp_rates_NUTS3) %>%
+   mutate(level = case_when(
+    nchar(NUTS3) == 2 ~ 0,  # NUTS0
+    nchar(NUTS3) == 3 ~ 1,  # NUTS1
+    nchar(NUTS3) == 4 ~ 2,  # NUTS2
+    nchar(NUTS3) >= 5 ~ 3   # NUTS3
+  )) %>%
+  rename(geo = NUTS3) %>%
+  left_join(NUTS, by="geo") %>%
+  left_join(EuropeGroups, by="geo") %>%
+  arrange(level, geo, TIME_PERIOD) %>%
+  select(-level, -cultural_group, -euro, -Schengen) %>%
+  relocate(NUTS) %>%
+  relocate(c(full_name, EU27_2020, geographic_group, TIME_PERIOD), .after=geo)
+
+EMPLEO %>% write_csv("EMPLEO.csv")
+TASA_EMPLEO %>% write_csv("TASA_EMPLEO.csv")
+```
+
+
+```{verbatim}
+paises <- c("Germany","France","Italy","Spain","Poland","Romania","Sweden","Czechia","Portugal","Belgium","Greece","Hungary","Austria","Bulgaria","Serbia","Denmark","Finland","Ireland","Slovakia","Croatia","Lithuania","Slovenia","Latvia","North Macedonia","Estonia","Luxembourg","Cyprus","Malta")
+
+median_age <- read.csv("https://ourworldindata.org/grapher/median-age.csv?v=1&csvType=full&useColumnShortNames=true") %>%
+  as_tibble() %>% 
+  filter(Year >= 2000, Year <= 2023) %>%
+  filter(Entity %in% paises) %>%
+  select(-median_age__sex_all__age_all__variant_medium) %>%
+  rename(median_age = median_age__sex_all__age_all__variant_estimates) %>%
+  select(-Code)
+
+fertility_rate_hist <- read.csv("https://ourworldindata.org/grapher/children-born-per-woman.csv?v=1&csvType=full&useColumnShortNames=true") %>%
+  as_tibble() %>% 
+  filter(Year >= 2000) %>%
+  filter(Entity %in% paises) %>%
+  select(-Code) %>%
+  rename(fertility_rate = fertility_rate_hist)
+
+extreme_poverty_share <- read.csv("https://ourworldindata.org/grapher/share-of-population-in-extreme-poverty.csv?v=1&csvType=full&useColumnShortNames=true") %>%
+  as_tibble() %>% 
+  filter(Year >= 2000) %>%
+  filter(Entity %in% paises) %>%
+  rename(extreme_poverty_share = headcount_ratio__ppp_version_2021__poverty_line_300__welfare_type_income_or_consumption__table_income_or_consumption_consolidated__survey_comparability_no_spells) %>%
+  select(-population_historical, -owid_region, -Code)
+
+extreme_poverty_number <- read.csv("number-of-people-living-in-extreme-poverty.csv") %>%
+  as_tibble() %>% 
+  filter(Year >= 2000) %>%
+  filter(Country %in% paises) %>%
+  rename(Entity = Country, extreme_poverty_number = Number.below..3.a.day)
+  
+gender_wage_gap <- read.csv("https://ourworldindata.org/grapher/gender-gap-in-average-wages-ilo.csv?v=1&csvType=full&useColumnShortNames=true") %>% as_tibble() %>% 
+  filter(Year >= 2000) %>%
+  filter(Entity %in% paises) %>%
+  select(-Code) %>%
+  rename(gender_wage_gap = gender_wage_gap_by_occupation__classif1_occupation__skill_level__total)
+      
+working_hours <- read.csv("https://ourworldindata.org/grapher/annual-working-hours-per-worker.csv?v=1&csvType=full&useColumnShortNames=true") %>% as_tibble() %>% 
+  filter(Year >= 2000) %>%
+  filter(Entity %in% paises) %>%
+  select(-Code) %>%
+  rename(working_hours_per_year = working_hours_omm)
+
+life_expectancy <- read.csv("https://ourworldindata.org/grapher/life-expectancy.csv?v=1&csvType=full&useColumnShortNames=true") %>%
+  as_tibble() %>% 
+  filter(Year >= 2000) %>%
+  filter(Entity %in% paises) %>%
+  rename(life_expectancy = life_expectancy_0) %>%
+  select(-Code)
+
+hunger <- read.csv("https://ourworldindata.org/grapher/prevalence-of-undernourishment.csv?v=1&csvType=full&useColumnShortNames=true") %>%
+  as_tibble() %>% 
+  filter(Year >= 2000) %>%
+  filter(Entity %in% paises) %>%
+  rename(prevalence_undernourishment_share = X_2_1_1_prevalence_of_undernourishment__000000000024000__value__006121__percent) %>%
+  select(-Code)
+
+human_development_index <- read.csv("https://ourworldindata.org/grapher/human-development-index.csv?v=1&csvType=full&useColumnShortNames=true") %>%
+  as_tibble() %>% 
+  filter(Year >= 2000) %>%
+  filter(Entity %in% paises) %>%
+  select(-owid_region, -Code) %>%
+  rename(human_development_index = hdi__sex_total)
+
+education_spending <- read.csv("https://ourworldindata.org/grapher/total-government-expenditure-on-education-gdp.csv?v=1&csvType=full&useColumnShortNames=true") %>%
+  as_tibble() %>% 
+  filter(Year >= 2000) %>%
+  filter(Entity %in% paises) %>%
+  select(-Code) %>% 
+  rename(education_expenditure_share_gdp = combined_expenditure_share_gdp)
+
+productivity <- read.csv("https://ourworldindata.org/grapher/labor-productivity-per-hour-pennworldtable.csv?v=1&csvType=full&useColumnShortNames=true") %>%
+  as_tibble() %>% 
+  filter(Year >= 2000) %>%
+  filter(Entity %in% paises) %>%
+  select(-Code)
+
+CO2_emissions <- read.csv("https://ourworldindata.org/grapher/co-emissions-per-capita.csv?v=1&csvType=full&useColumnShortNames=true") %>%
+  as_tibble() %>% 
+  filter(Year >= 2000) %>%
+  filter(Entity %in% paises) %>%
+  select(-Code)
+
+population <- read.csv("population.csv") %>% as_tibble() %>%
+  filter(Year >= 2000) %>%
+  filter(Entity %in% paises) %>%
+  rename(population = all.years)
+
+healthcare_spending <- read.csv("https://ourworldindata.org/grapher/public-health-expenditure-share-gdp.csv?v=1&csvType=full&useColumnShortNames=true") %>%             
+  as_tibble() %>%
+  filter(Year >= 2000) %>%
+  filter(Entity %in% paises) %>%
+  select(-Code) %>%
+  rename(healthcare_expenditure_share_gdp = share_gdp)
+
+immigration <- read.csv("https://ourworldindata.org/grapher/migrant-stock-share.csv?v=1&csvType=full&useColumnShortNames=true") %>%
+  as_tibble() %>%
+  filter(Year >= 2000) %>%
+  filter(Entity %in% paises) %>%
+  select(-Code) %>%
+  rename(immigrant_share_of_population = immigrant_share_of_dest_population_all)
+
+land_use <- read.csv("https://ourworldindata.org/grapher/total-agricultural-area-over-the-long-term.csv?v=1&csvType=full&useColumnShortNames=true") %>%
+  as_tibble() %>%
+  filter(Year >= 2000) %>%
+  filter(Entity %in% paises) %>%
+  select(-Code) %>%
+  rename(land_use_in_hectares = agriculture_c)
+
+NUTS <- read_csv('http://ctim.es/AEDV/data/eurostac_real_nuts.csv') %>%
+  as_tibble()
+
+GDP_per_capita <- get_eurostat("nama_10_pc", time_format = "date") %>%
+  as_tibble() %>%
+  arrange(TIME_PERIOD,geo) %>%
+  filter(TIME_PERIOD >= as.Date("2000-01-01")) %>%
+  filter(na_item == "B1GQ", unit == "CLV20_EUR_HAB", nchar(geo) == 2) %>%
+  select(-unit, -freq, -na_item) %>%
+  left_join(NUTS, by= "geo") %>%
+  na.omit() %>%
+  mutate(TIME_PERIOD = as.integer(substr(as.character(TIME_PERIOD), 1, 4))) %>%
+  select(-geo, -NUTS) %>%
+  rename(GDP_per_capita = values, Country = full_name, Year = TIME_PERIOD)
+
+education_level <- get_eurostat("edat_lfs_9910", time_format = "date") %>%
+  as_tibble() %>%
+  arrange(TIME_PERIOD,geo) %>%
+  filter(nace_r2 == "TOTAL", sex == "T", age == "Y18-74", isced11 != "ED3-8", nchar(geo) == 2) %>%
+  select(-unit, -freq, -nace_r2, -age, -sex) %>%
+  pivot_wider(names_from = "isced11", values_from = "values") %>%
+  select(-ED3_4GEN, -ED3_4VOC) %>%
+  left_join(NUTS, by= "geo") %>%
+  na.omit() %>%
+  mutate(TIME_PERIOD = as.integer(substr(as.character(TIME_PERIOD), 1, 4))) %>%
+  select(-geo, -NUTS) %>%
+  rename(only_basic_education = `ED0-2`, till_secondary_education = `ED3_4`, tertiary_education = `ED5-8`, 
+         Country = full_name, Year = TIME_PERIOD)
+
+
+datasets_OWID <- list(
+  population,
+  median_age,
+  life_expectancy,
+  working_hours,
+  productivity,
+  human_development_index,
+  gender_wage_gap,
+  immigration,
+  fertility_rate_hist,
+  extreme_poverty_share,
+  extreme_poverty_number,
+  hunger,
+  education_spending,
+  healthcare_spending,
+  land_use,
+  CO2_emissions
+)
+
+full_data <- reduce(datasets_OWID, function(x, y) {
+  full_join(x, y, by = c("Entity", "Year"))
+})
+
+full_data <- full_data %>% rename(Country = Entity)
+
+full_data <- full_data %>%
+  left_join(GDP_per_capita, by = c("Country", "Year")) %>%
+  left_join(education_level, by = c("Country", "Year"))
+
+KEY_INDICATORS <- full_data %>%
+  relocate(GDP_per_capita, .after = life_expectancy) %>%
+  relocate(c(only_basic_education, till_secondary_education, tertiary_education), .after=human_development_index)
+  
+KEY_INDICATORS <- KEY_INDICATORS %>%
+  left_join(NUTS, by=c("Country" = "full_name")) %>%
+  select(-NUTS) %>%
+  relocate(geo)
+
+KEY_INDICATORS %>% write_csv("KEY_INDICATORS.csv")
+```
+
+```{verbatim}
+EMPLEO_CANARIAS_ISTAC <- read.csv("empleo_municipios_2024.csv") %>% as_tibble()
+EMPLEO_CANARIAS_ISTAC <- EMPLEO_CANARIAS_ISTAC %>% select(-FID, -time_format, -granularity, -(pact_t:pact_f_55mas),            
+                        -(pocu_t_16a24:psal_pub_f), -(ppar_t:ppar_ld_f)) %>%
+                        relocate(label, .after = time_period)
+
+EMPLEO_CANARIAS_ISTAC %>% write.csv("EMPLEO_MUNICIPIOS.csv")
+```
+
+```{verbatim}
+library(stringr)
+
+setwd("OBECAN")
+
+normalizar_contrato <- function(df) {
+  df %>%
+    mutate(
+      Tipo.Contrato = str_trim(Tipo.Contrato),
+      Tipo.Contrato = case_when(
+        Tipo.Contrato %in% c("Conversión a Indefinido", "Conversión a Indefinido ") ~ "Conversión a Indefinido",
+        Tipo.Contrato %in% c("Indefinido", "Indefinido ") ~ "Indefinido",
+        Tipo.Contrato %in% c("Temporal Tiempo Completo", "Temporal Tiempo Completo ") ~ "Temporal Tiempo Completo",
+        Tipo.Contrato %in% c("Temporal Tiempo Parcial", "Temporal Tiempo Parcial  ") ~ "Temporal Tiempo Parcial",
+        Tipo.Contrato %in% c("Otros Contratos", "Otros Contratos          ") ~ "Otros Contratos",
+        TRUE ~ Tipo.Contrato
+      )
+    )
+}
+
+procesar_mes <- function(archivo) {
+  año <- str_extract(archivo, "20[0-9]{2}") |> as.numeric()
+  mes <- str_extract(archivo, "[0-9]{6}") |> substr(5, 6) |> as.numeric()
+  
+  read.csv2(archivo, colClasses = "character") %>% 
+    as_tibble() %>%
+    mutate(
+      Contratos = as.numeric(Contratos),
+      isla = toupper(isla)
+    ) %>%
+    normalizar_contrato() %>%
+    group_by(isla, Tipo.Contrato, sexo, edad) %>%
+    summarise(Contratos = sum(Contratos, na.rm = TRUE), .groups = "drop") %>%
+    filter(Tipo.Contrato != "Otros Contratos") %>%
+    mutate(
+      año = año,
+      mes = mes,
+      fecha = sprintf("%04d-%02d", año, mes)
+    )
+}
+
+procesar_anual <- function(archivo) {
+  mapping <- tribble(
+    ~mlt, ~isla,
+    "Gran Canaria Sur",       "GRAN CANARIA",
+    "Gran Canaria Noreste",   "GRAN CANARIA",
+    "Gran Canaria Noroeste",  "GRAN CANARIA",
+    "Lanzarote",              "LANZAROTE",
+    "Fuerteventura Sur",      "FUERTEVENTURA",
+    "Fuerteventura Norte",    "FUERTEVENTURA",
+    "Tenerife Noroeste",      "TENERIFE",
+    "Tenerife Noreste",       "TENERIFE",
+    "Tenerife Suroeste",      "TENERIFE",
+    "Tenerife Sureste",       "TENERIFE",
+    "La Gomera",              "LA GOMERA",
+    "La Palma Este",          "LA PALMA",
+    "La Palma Oeste",         "LA PALMA",
+    "El Hierro",              "EL HIERRO"
+  )
+  
+  read.csv2(archivo, colClasses = "character") %>%
+    as_tibble() %>%
+    mutate(
+      fecha = str_replace(fecha, "\\.", ""),
+      año   = substr(fecha, 1, 4) |> as.numeric(),
+      mes   = substr(fecha, 5, 6) |> as.numeric(),
+      Contratos = as.numeric(contratos)
+    ) %>%
+    left_join(mapping, by = c("Mercado.local.de.trabajo" = "mlt")) %>%
+    mutate(
+      isla = toupper(isla),
+      fecha = sprintf("%04d-%02d", año, mes)
+    ) %>%
+    normalizar_contrato() %>%
+    group_by(isla, Tipo.Contrato, sexo, edad, año, mes, fecha) %>%
+    summarise(Contratos = sum(Contratos, na.rm = TRUE), .groups = "drop") %>%
+    filter(Tipo.Contrato != "Otros Contratos")
+}
+
+archivos_2023 <- list.files(pattern = "^contratos_registrados_2023[0-9]{2}\\.csv$")
+CONTRATOS_2023 <- map_dfr(archivos_2023, procesar_mes)
+
+archivos_2024 <- list.files(pattern = "^contratos_registrados_2024[0-9]{2}\\.csv$")
+CONTRATOS_2024 <- map_dfr(archivos_2024, procesar_mes)
+
+archivos_anuales <- list.files(pattern = "^contratos20(18|19|20|21|22)\\.csv$")
+CONTRATOS_2018_2022 <- map_dfr(archivos_anuales, procesar_anual)
+
+CONTRATOS_ALL <- bind_rows(CONTRATOS_2018_2022, CONTRATOS_2023, CONTRATOS_2024) %>%
+  mutate(
+    isla = toupper(str_trim(isla)),
+    sexo = str_trim(sexo),
+    edad = str_trim(edad)
+  ) %>%
+  arrange(año, mes)
+
+write.csv(CONTRATOS_ALL, "CONTRATOS_2018_2024.csv", row.names = FALSE)
+```
+
+```{verbatim}
+INSERCION_FP <- read.csv("INSERCION_FP.csv") %>% as_tibble()
+INSERCION_GRADO <- read.csv("INSERCION_GRADO.csv") %>% as_tibble()
+
+fp_to_grado <- c(
+  "Administración y Gestión"                   = "CIENCIAS_SOCIALES_JURIDICAS",
+  "Edificación y Obra Civil"                   = "INGENIERIA_ARQUITECTURA",
+  "Electricidad y Electrónica"                 = "INGENIERIA_ARQUITECTURA",
+  "Hostelería y Turismo"                       = "CIENCIAS_SOCIALES_JURIDICAS",
+  "Imagen Personal"                            = "ARTES_HUMANIDADES",
+  "Imagen y Sonido"                            = "ARTES_HUMANIDADES",
+  "Industrias Alimentarias"                    = "CIENCIAS",
+  "Informática y Comunicaciones"               = "INGENIERIA_ARQUITECTURA",
+  "Química"                                    = "CIENCIAS",
+  "Sanidad"                                    = "CIENCIAS_SALUD",
+  "Servicios Socioculturales y a la Comunidad" = "CIENCIAS_SOCIALES_JURIDICAS"
+)
+
+INSERCION_FP <- INSERCION_FP %>% filter(MEDIDAS_CODE == "TASA_INSERCION_LABORAL", SEXO_CODE == "_T", 
+substr(as.character(TITULACION_CODE), 1, 4) == "1221", TITULACION_CODE != "1221") %>%
+  group_by(TITULACION.es, TIME_PERIOD_CODE) %>%
+  summarise(OBS_VALUE = mean(OBS_VALUE,  na.rm = TRUE)) %>%
+  pivot_wider(names_from = "TITULACION.es", values_from = "OBS_VALUE") %>%
+  select(-`Actividades Físicas y Deportivas`, -(Agraria:`Comercio y Marketing`), -`Energía y Agua`, 
+         -`Fabricación Mecánica`, -(`Instalación y Mantenimiento`:`Marítimo-Pesquera`), 
+         -c(`Seguridad y Medio Ambiente`,`Transporte y Mantenimiento de Vehículos`, `Textil, Confección y Piel`)) %>%
+  pivot_longer(`Administración y Gestión`:`Servicios Socioculturales y a la Comunidad`, names_to = "FAMILIA_CODE", values_to = "OBS_VALUE")
+
+
+INSERCION_GRADO <- INSERCION_GRADO %>% filter(MEDIDAS_CODE == "TASA_INSERCION_LABORAL", SEXO_CODE == "_T", 
+RAMA_ENSENIANZA_CODE != "_T", TIME_PERIOD_CODE > 2017, TIME_PERIOD_CODE < 2024) %>%
+  group_by(RAMA_ENSENIANZA_CODE, TIME_PERIOD_CODE) %>%
+  summarise(OBS_VALUE = mean(OBS_VALUE,  na.rm = TRUE)) %>%
+  rename(TASA_GRADO = OBS_VALUE)
+  
+INSERCION_FP <- INSERCION_FP %>%
+  mutate(RAMA_ENSENIANZA_CODE = fp_to_grado[FAMILIA_CODE]) %>% 
+  group_by(TIME_PERIOD_CODE, RAMA_ENSENIANZA_CODE) %>%
+  summarise(TASA_FP = mean(OBS_VALUE,  na.rm = TRUE))
+
+INSERCION_LABORAL <- INSERCION_FP %>%
+  left_join(INSERCION_GRADO, by = c("RAMA_ENSENIANZA_CODE", "TIME_PERIOD_CODE"))
+
+INSERCION_LABORAL %>% write.csv("INSERCION_LABORAL.csv")
+```
+
+```{r}
+EMPLEO <- read_csv("EMPLEO.csv")
+
+EMPLEO_Sectores <- EMPLEO %>%
+  mutate(sector = case_when(
+    nace_r2 %in% c("A") ~ "Primario",
+    nace_r2 %in% c("B-E","C","F") ~ "Secundario",
+    nace_r2 %in% c("G-J","K-N","O-U") ~ "Terciario",
+    TRUE ~ NA_character_
+  )) %>%
+  filter(!is.na(sector))
+
+TASA_EMPLEO <- read.csv("TASA_EMPLEO.csv") %>%
+  as_tibble()
+
+GENDER_GAP <- TASA_EMPLEO %>%
+  filter(sex != T) %>%
+  pivot_wider(
+    names_from = sex,      
+    values_from = emp_rate,
+  ) %>%
+  mutate(gender_gap = M - F)
+
+KEY_INDICATORS <- read.csv("KEY_INDICATORS.csv") %>%
+  as_tibble()
+
+CONTRATOS_2018_2024 <- read_csv("CONTRATOS_2018_2024.csv") %>% as_tibble()
+
+INSERCION_LABORAL <- read_csv("INSERCION_LABORAL.csv") %>% as_tibble()
+
+EMPLEO_MUNICIPIOS <- read_csv("EMPLEO_MUNICIPIOS.csv") %>% as_tibble() %>% select(-geom) %>%
+  mutate(temp_t = 100-tpar_t, temp_m = 100-tpar_m, temp_f = 100-tpar_f) %>% 
+  relocate((temp_t:temp_f), .after = psel_f)
+```
+
+### EUROSTAT
+
+**1️⃣ Limpieza y depuración inicial.**
+
+Los tres datasets originales de Eurostat (nama_10r_3empers, demo_r_pjanaggr3, lfst_r_lfe2emprt) fueron descargados con el paquete eurostat y filtrados para el periodo 2000–2023/2024, eliminando las variables no relevantes (unit, freq).
+
+Posteriormente, se renombraron las variables principales: número de empleados → employment, población en edad de trabajar → working_age_population, tasa de empleo → emp_rate; se homogeneizó el formato temporal (TIME_PERIOD) convirtiendo las fechas a año numérico; y se ordenaron los datos por región (geo) y año (TIME_PERIOD) para facilitar comparaciones.
+
+**2️⃣ Transformaciones y creación de variables.**
+
+**-Empleo per cápita:**
+
+A partir de los datos de empleo total (employment) y población en edad de trabajar (working_age_population), se creó la variable:
+
+emp_per_working_age = employment * 1000 / working_age_population
+
+
+Esta variable mide la intensidad del empleo regional, es decir, cuántas personas empleadas hay por cada habitante en edad de trabajar. Este indicador es útil para comparar la dinámica laboral de diferentes regiones, independientemente de su tamaño poblacional, permitiendo evaluar la eficiencia o penetración del mercado laboral en las regiones analizadas y/o por sectores.
+
+**-Estructura sectorial:**
+
+Del dataset nama_10r_3empers (empleo por sectores NACE Rev.2 A10) se mantuvieron las categorías económicas, lo que permitirá en fases posteriores calcular:
+
+·Participación sectorial del empleo (empleo sector / empleo total).
+
+·Indicadores de especialización regional.
+
+·Índices de diversificación sectorial.
+
+**-Estructura demográfica del empleo:**
+
+En lfst_r_lfe2emprt, se filtraron los grupos de edad: Y15-24, Y25-34, Y35-44, Y45-54, Y55-64, Y15-64, Y_GE65.
+
+Esto permitirá calcular, en fases siguientes, indicadores de:
+
+·Tasa de empleo por grupo de edad.
+
+·Brecha de género:
+
+gender_gap = emp_rateM − emp_rateF
+
+**-Jerarquía territorial:**
+
+Se incorporó la jerarquía territorial NUTS (niveles 0–3) mediante la unión con las tablas NUTS y EuropeGroups, para permitir análisis agregados por nivel territorial y agrupaciones geográficas (por ejemplo, norte/sur/este/oeste de Europa).
+Asimismo, se incluyó el nivel NUTS3 en lfst_r_lfe2emprt heredando los valores de su código NUTS2 correspondiente.
+
+**3️⃣ Integración final.**
+
+Tras las uniones (left_join) y transformaciones, se obtuvieron dos conjuntos principales:
+
+**·EMPLEO	-> Empleo total y por sector + población en edad de trabajar + empleo por habitante en edad de trabajar (NUTS0-3).**
+
+Primeras 2000 observaciones.
+```{r}
+EMPLEO %>%
+  head(2000) %>%
+  datatable(
+  options = list(
+    scrollX = TRUE,   
+    scrollY = "400px", 
+    paging = TRUE
+  )
+)
+```
+
+**·TASA_EMPLEO -> Tasa de empleo por edad y sexo	(NUTS0–2 + NUTS3).**
+
+Primeras 2000 observaciones.
+```{r}
+TASA_EMPLEO %>%
+  head(2000) %>%
+  datatable(
+  options = list(
+    scrollX = TRUE,   
+    scrollY = "400px",
+    paging = TRUE
+  )
+)
+```
+
+
+### OWID (Our World in Data)
+
+**1️⃣ Definición del alcance y extracción de datos.**
+
+Se estableció una lista de 28 países europeos clave para el análisis. Posteriormente, se descargaron **18 datasets individuales** directamente desde los enlaces públicos de OWID, cada uno correspondiente a un indicador socioeconómico o demográfico específico (p. ej., esperanza de vida, horas trabajadas, emisiones de CO₂).
+
+Cada archivo se importó como un `tibble`, filtrándose para el periodo 2000–2023 y para la lista de países predefinida. Se realizó una **depuración inicial** seleccionando únicamente las columnas relevantes (`Entity`, `Year`, y la variable de interés) y renombrándolas con nombres estandarizados y más intuitivos (ej., `fertility_rate_hist` → `fertility_rate`).
+
+**2️⃣ Integración de indicadores de Eurostat.**
+
+Para completar el análisis con variables económicas clave, se integraron datos de **Eurostat** mediante la API `eurostat`:
+*   **`GDP_per_capita`**: Extraído de la tabla `nama_10_pc` (PIB per cápita en estándar de poder adquisitivo).
+*   **`education_level`**: Extraído de la tabla `edat_lfs_9910` (nivel educativo de la población por ISCED).
+
+Estos datos se filtraron por periodo, país y variables relevantes, y se unieron (`left_join`) a la tabla NUTS para obtener los códigos geoestadísticos estandarizados (`geo`).
+
+**3️⃣ Fusión y consolidación del dataset final.**
+
+Todos los `tibbles` individuales de OWID se combinaron en una lista y se fusionaron secuencialmente utilizando `reduce()` y `full_join()` sobre las claves `Entity` (país) y `Year`. El dataset resultante se enriqueció con las variables de Eurostat (`GDP_per_capita` y `education_level`) mediante nuevas uniones.
+
+Finalmente, se reorganizó el orden de las columnas para una mejor legibilidad, se añadió el código `geo` de referencia y se exportó el dataset consolidado como **`KEY_INDICATORS.csv`**.
+
+**4️⃣ Resultado: Dataset integrado de indicadores clave.**
+
+El proceso generó un dataset único, longitudinal y de **panel balanceado**, que integra **20 indicadores clave** —demográficos, económicos, sociales y medioambientales— para 28 países europeos entre 2000 y 2023, listo para su análisis correlacional y multivariante.
+
+```{r}
+KEY_INDICATORS %>%
+  head(500) %>%
+  datatable(
+    options = list(
+      scrollX = TRUE,
+      scrollY = "400px",
+      paging = TRUE
+    )
+  )
+```
+### Fuentes canarias: ISTAC y OBECAN
+
+**1️⃣ Datos municipales de empleo (ISTAC).**
+
+El dataset original (`empleo_municipios_2024.csv`) del **ISTAC** contenía numerosas variables desagregadas por sexo y grupos de edad. Se realizó una **depuración selectiva**, eliminando columnas no relevantes para el análisis (como `FID`, `time_format`, `granularity` y variables específicas de grupos de edad estrechos o de empleo público). Se mantuvieron las variables esenciales de **población ocupada** (`pocu`), **población en búsqueda de empleo** (`psel`), **tasa de paro** (`tpar`) y **tasa de asalariados** (`tsal`), siempre desglosadas por sexo (total, hombres, mujeres). El dataset resultante, **`EMPLEO_MUNICIPIOS.csv`**, proporciona una radiografía del mercado laboral a la escala más detallada disponible: el municipio.
+
+```{r}
+EMPLEO_MUNICIPIOS %>%
+  select(-"...1") %>%
+  head(300) %>%
+  datatable(
+    options = list(
+      scrollX = TRUE,
+      scrollY = "300px",
+      paging = FALSE
+    )
+  )
+```
+
+
+**2️⃣ Registro de contratos por isla (OBECAN).**
+
+Para analizar el impacto de la reforma laboral de 2022, se procesaron **archivos mensuales y anuales** del Servicio Canario de Empleo (SCE), obtenidos a través del OBECAN. El proceso incluyó:
+
+*   **Normalización de categorías:** Se estandarizaron los nombres de los tipos de contrato (ej., "Indefinido " → "Indefinido") y se consolidaron las categorías de isla (agrupando subregiones como "Gran Canaria Sur" en "GRAN CANARIA").
+
+*   **Fusión temporal:** Se combinaron datos de dos formatos distintos: archivos anuales (2018-2022) y mensuales (2023-2024), aplicando funciones de procesamiento específicas para cada uno.
+
+*   **Agregación y limpieza:** Los datos se agruparon por isla, tipo de contrato, sexo y edad, sumando el número de contratos. Se filtró la categoría residual "Otros Contratos". El dataset final **`CONTRATOS_2018_2024.csv`** permite un análisis diacrónico y detallado de la evolución de la temporalidad en el archipiélago.
+
+```{r}
+CONTRATOS_2018_2024 %>%
+  select(-año, -mes) %>%
+  head(300) %>%
+  datatable(
+    options = list(
+      scrollX = TRUE,
+      scrollY = "300px",
+      paging = FALSE
+    )
+  )
+```
+
+
+**3️⃣ Tasa de inserción laboral por formación (ISTAC).**
+
+Para comparar la empleabilidad de la Formación Profesional (FP) y el Grado Universitario, se fusionaron dos datasets del ISTAC:
+
+*   Se filtraron las **tasas de inserción laboral** para el total de sexos (`_T`) y se promediaron los valores por rama de enseñanza y año.
+
+*   Se **mapearon las familias profesionales de FP a ramas universitarias equivalentes** mediante un diccionario creado a criterio analítico (p. ej., "Sanidad" (FP) → "CIENCIAS_SALUD"). Esta equivalencia es una aproximación necesaria dada la falta de una correspondencia oficial uno-a-uno.
+
+*   El dataset resultante, **`INSERCION_LABORAL.csv`**, contiene para cada rama y año (2018-2023) dos columnas clave: `TASA_FP` y `TASA_GRADO`, permitiendo comparar directamente la empleabilidad de ambas vías formativas en el mercado laboral canario.
+
+```{r}
+INSERCION_LABORAL %>% 
+  select(-"...1") %>%
+  head(300) %>%
+  datatable(
+    options = list(
+      scrollX = TRUE,
+      scrollY = "300px",
+      paging = FALSE
+    )
+  )
+```
+
+
+### Evolución total del empleo en la Unión Europea (2000-2022)
+
+La **evolución del empleo en la UE-27 (2000-2022)** revela una **trayectoria resiliente** marcada por ciclos económicos. Tras un crecimiento sostenido hasta 2008, la crisis financiera provocó una contracción prolongada (2009-2013). La posterior recuperación no solo restableció, sino que superó los niveles de empleo previos a la crisis.
+
+La pandemia de COVID-19 causó una caída abrupta en 2020, pero menos severa y más corta que la anterior recesión. La rápida recuperación en 2021-2022, alcanzando máximos históricos, destaca la creciente **adaptabilidad del mercado laboral europeo** ante shocks externos.
+
+Sin embargo, este panorama agregado oculta importantes **disparidades territoriales**. La tendencia positiva es el resultado neto de dinámicas regionales muy heterogéneas. Para descubrir qué territorios han impulsado el crecimiento y cuáles se han quedado rezagados, es necesario descender en la escala de análisis. El siguiente paso consiste en desagregar esta evolución a nivel nacional y regional hasta llegar a NUTS 3, identificando así los patrones geográficos subyacentes a esta resiliencia agregada.
+
+```{r}
+ev_emp_UE <- EMPLEO %>%
+  filter(NUTS == 0, EU27_2020 == "SI", wstatus == "EMP", nace_r2 == "TOTAL", TIME_PERIOD >= 2000 & TIME_PERIOD < 2023) %>%
+  group_by(TIME_PERIOD) %>%
+  summarise(employment_total = sum(employment, na.rm = TRUE)) %>%
+  arrange(TIME_PERIOD) %>%
+  mutate(
+    x = TIME_PERIOD,
+    xend = lead(TIME_PERIOD),
+    y = employment_total,
+    yend = lead(employment_total),
+    trend = case_when(
+      is.na(yend) ~ NA_character_,
+      yend - y > 0 ~ "Crecimiento",
+      yend - y < 0 ~ "Decrecimiento",
+      TRUE ~ "Sin cambio"
+    )
+  ) %>%
+  filter(!is.na(xend))
+
+
+colores_trend <- c(
+  "Crecimiento" = "#2ECC71",   
+  "Decrecimiento" = "#E74C3C", 
+  "Sin cambio" = "#95A5A6"     
+)
+
+
+p <- plot_ly()
+
+
+for (i in 1:nrow(ev_emp_UE)) {
+  p <- add_trace(
+    p,
+    type = "scatter",
+    mode = "lines+markers",
+    x = c(ev_emp_UE$x[i], ev_emp_UE$xend[i]),
+    y = c(ev_emp_UE$y[i], ev_emp_UE$yend[i]),
+    line = list(color = colores_trend[ev_emp_UE$trend[i]], width = 4),
+    marker = list(size = 6, color = colores_trend[ev_emp_UE$trend[i]]),
+    name = ev_emp_UE$trend[i],
+    hoverinfo = "text",
+    text = paste0(
+      "<b>", ev_emp_UE$trend[i], "</b><br>",
+      "Año: ", ev_emp_UE$x[i], "<br>",
+      "Empleo: ", ev_emp_UE$y[i], "<br>"
+    ),
+    showlegend = FALSE
+  )
+}
+
+ultimo <- tail(ev_emp_UE, 1)
+p <- add_trace(
+  p,
+  type = "scatter",
+  mode = "markers",
+  x = ultimo$xend,
+  y = ultimo$yend,
+  marker = list(size = 6, color = colores_trend[ultimo$trend]),
+  hoverinfo = "text",
+  text = paste0(
+    "<b>", ultimo$trend, "</b><br>",
+    "Año: ", ultimo$xend, "<br>",
+    "Empleo: ", ultimo$yend, "<br>"
+  ),
+  showlegend = FALSE
+)
+
+
+p <- layout(
+  p,
+  title = list(
+    text = paste0(
+      "<b>Agregado de los 27 Estados miembros actuales (excluye Reino Unido)</b>"
+    ),
+    yref = "paper",
+    y = 1.08,          
+    x = 0.5,           
+    xanchor = "center",
+    yanchor = "top"
+  ),
+  margin = list(t = 50),
+  xaxis = list(
+    title = list(text = "<b>Año</b>"),
+    tickmode = "array",
+    tickvals = seq(2000, 2020, 5),  
+    ticktext = seq(2000, 2020, 5)
+  ),
+  yaxis = list(
+    title = list(text = "<b>Empleo (en miles de personas)</b>")
+  ),
+  hoverlabel = list(bgcolor = "white", font = list(size = 12))
+)
+
+p
+```
+
+
+
+### La geografía de la brecha de género en el empleo europeo
+
+Antes de profundizar en el análisis sectorial y territorial del empleo, es crucial obtener una visión panorámica de una de sus dimensiones más determinantes: **la desigualdad entre hombres y mujeres en el mercado laboral**. El mapa de la brecha de género (calculada como la diferencia entre las tasas de empleo masculina y femenina) revela un patrón geográfico marcado y persistente en la UE.
+
+La visualización muestra un claro **gradiente norte-sur y oeste-este**. Los países nórdicos y bálticos, representados en tonos lilas y violetas, presentan las brechas más reducidas. Destaca especialmente **Finlandia**, un caso paradigmático donde la tasa de empleo femenina **supera** a la masculina, situándose como el único país de la UE con una brecha de género *negativa* en este indicador. Este resultado refleja décadas de políticas activas de conciliación, educación y equidad.
+
+Por el contrario, el sur de Europa (Italia, Grecia, regiones del sur de España) y el este (Hungría, Rumanía, Polonia) muestran los tonos azules más intensos, indicando **brechas que superan los 10-15 puntos porcentuales**. Esta distribución no es aleatoria: correlaciona con factores estructurales como la menor provisión de servicios públicos de cuidado, una mayor presencia de sectores tradicionales con alta segregación de género, y normas sociales más arraigadas sobre los roles familiares.
+
+```{r}
+geoj <- geojson_read("geoj_0.geojson", what = "sp")
+
+gap_tb <- GENDER_GAP %>%
+  filter(EU27_2020 == "SI", NUTS == 0, TIME_PERIOD == 2023, age != "Y_GE65") %>%
+  select(-c(F, M, T)) %>%
+  group_by(full_name, geo) %>%
+  summarise(gender_gap = mean(gender_gap, na.rm = TRUE), .groups = "drop")
+
+geoj@data <- geoj@data %>%
+  left_join(gap_tb, by = c("NUTS_ID" = "geo"))
+
+geoj_filtrado <- geoj[!is.na(geoj@data$gender_gap), ]
+
+valores <- geoj_filtrado@data$gender_gap
+
+valores_txt <- ifelse(
+  is.na(valores),
+  "Sin datos",
+  prettyNum(round(valores, 2), big.mark = ",", scientific = FALSE)
+)
+
+etiquetas <- paste0(
+  "<strong>", geoj_filtrado@data$full_name, "</strong><br>",
+  "Brecha de género: ", valores_txt
+) %>% lapply(htmltools::HTML)
+
+MapaCoroplético(
+  geoj_filtrado,
+  valores,
+  etiquetas,
+  "Brecha de género",
+  palette = colorRampPalette(c("#C77BFF", "#FFFFFF", "#2166AC")),
+  lng = 11.7038, lat = 55, zoom = 3
+)
+```
+
+Este mapa no es solo una fotografía de la desigualdad; es el **punto de partida para el análisis evolutivo** que seguirá. Plantea preguntas clave: ¿Han convergido las regiones en esta brecha en los últimos 20 años? ¿Cómo se relaciona la estructura productiva de un territorio con su nivel de desigualdad de género? Para responderlas, el siguiente paso será **integrar esta dimensión en el análisis temporal y sectorial**, observando cómo ha evolucionado la brecha en cada región y qué factores económicos parecen influir en su reducción o persistencia.
+
+
+
+
+### Disparidades regionales en el desempeño del mercado laboral
+
+Tras confirmar la evolución en términos absolutos del empleo en Europa y la persistente brecha de género, el análisis avanza para identificar sus causas subyacentes. Una primera clave reside en la **distribución territorial del empleo**, que revela un claro gradiente entre el Norte-Oeste y el Sur-Este de Europa.
+
+La región **Oeste** lidera con la tasa de empleo más alta, aunque su elevada dispersión interna indica una fuerte heterogeneidad entre sus países. El **Norte** presenta una mediana similar, pero con una dispersión mucho más moderada, reflejando una mayor cohesión. Por el contrario, las regiones **Este** y **Sur** registran las medianas más bajas, confirmando un rezago estructural. La notable dispersión en el Este y Oeste evidencia, además, fuertes disparidades internas dentro de estos bloques.
+
+```{r}
+tasa_emp_geo_group <- TASA_EMPLEO %>%
+  filter(EU27_2020 == "SI", NUTS == 0, !is.na(geographic_group), TIME_PERIOD == 2022, age == "Y15-64", sex == "T")
+
+p <- tasa_emp_geo_group %>%
+  ggplot(aes(x = reorder(geographic_group, emp_rate), y = emp_rate, fill = geographic_group, text=paste(
+               "País:", full_name,
+               "<br>Tasa de empleo:", round(emp_rate, 2), "%"
+              ))) +
+  geom_boxplot(alpha = 0.7, outlier.color = "red", outlier.shape = 1) +
+  theme_bw(base_size = 12) +
+  geom_jitter(shape = 21, color = "black", size = 2, position = position_jitter(0.2), alpha = 0.7) +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_text(hjust = 1),
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5)
+  ) +
+  labs(
+    x = "Grupo geográfico", 
+    y = "Tasa de empleo (%)",
+    title = "Distribución de tasa de empleo por grupo geográfico en Europa (2022)"
+  )
+
+ggplotly(p, tooltip = "text")
+```
+
+Para comprender dónde se concentra realmente el empleo y qué economías nacionales impulsan el total europeo, es necesario **desagregar aún más los datos**. El siguiente paso consiste en analizar **qué países aportan más peso al empleo total de la UE**. Esta perspectiva es esencial para distinguir entre tendencias generalizadas y el impacto de unos pocos actores principales, desvelando así la verdadera arquitectura del mercado laboral europeo.
+
+
+
+### La concentración del empleo: aplicación del principio de Pareto
+
+La aplicación del **principio de Pareto** al empleo total de la UE en 2022 confirma una **concentración extrema** en unas pocas economías. **Alemania, Francia, Italia y España** reúnen, por sí solas, la mayor parte del empleo comunitario, superando cada una los 20 millones de personas empleadas.
+
+Este grupo de cuatro países es completado por **Polonia, Países Bajos, Rumanía, Suecia y Chequia**, que en conjunto con los anteriores **representan el 80% del empleo total europeo**. La visualización muestra una **brecha abismal** entre el volumen de empleo de estas nueve naciones y el del resto de estados miembros, evidenciando que el mercado laboral europeo descansa sobre un **núcleo muy reducido de economías**.
+
+Este hallazgo redefine nuestro entendimiento de las disparidades: no solo existen entre regiones, sino en la **propia contribución al empleo total**. La resiliencia y las tendencias agregadas de la UE están, por tanto, **íntimamente ligadas a la evolución del empleo en este puñado de países**. 
+
+```{r}
+ParetoValue <- function(
+v,
+ParetoSignificancia
+){
+
+  x <- sort(v,decreasing = TRUE)
+  return(x[which(cumsum(x)>=ParetoSignificancia*sum(x))[1]])
+}
+
+emp_pareto_UE <- EMPLEO %>%
+  filter(NUTS == 0, EU27_2020 == "SI", wstatus == "EMP", nace_r2 == "TOTAL", TIME_PERIOD == 2022) %>%
+  filter(employment > ParetoValue(employment, 0.8)) %>%
+  arrange(employment) %>%
+  mutate(full_name=factor(full_name,levels=unique(full_name)))
+  
+p <- emp_pareto_UE %>%  
+  ggplot(aes(x=full_name,y=employment,fill=full_name, text = paste0(
+    "País: ", full_name, "<br>",
+    "Empleo total: ", employment)
+  ))+
+  geom_bar(stat = "identity")+
+  labs(x="",y="Empleo total (en miles de personas)")+
+  coord_flip()+
+  theme_minimal(base_size = 12)+
+  theme(legend.position = "none")
+
+ggplotly(p, tooltip = "text") %>%
+  layout(
+    title = list(
+      text = paste0(
+        "Países que cubren el 80% del empleo total UE (2022)",
+        "<br>",
+        "<sup>Agregado de los 27 Estados miembros actuales</sup>"
+      )
+    ),
+    margin = list(t = 80)
+  )
+```
+
+Para entender hacia dónde se dirige el empleo europeo, debemos ahora **focalizar el análisis en la estructura laboral de estas naciones clave**.
+
+
+
+### Tasa de empleo per cápita en los países clave de la UE
+
+La evolución de la **tasa de empleo per cápita** (población 15-64 años) entre estos nueve países clave revela un **panorama dinámico y matizado**.
+
+Se observa una **clara tendencia de convergencia** a lo largo del periodo 2000-2024. La mayoría de países muestran una trayectoria alcista, superando con notable resiliencia las crisis de 2008 y 2020. Destacan los **crecimientos sostenidos de Alemania, Polonia y Países Bajos**, que han logrado mejorar significativamente sus posiciones relativas.
+
+Sin embargo, este análisis per cápita introduce una **perspectiva crítica**: el *ranking* de contribución absoluta al empleo total **no se mantiene**. Naciones como **España e Italia**, a pesar de su gran volumen de empleo total, parten de tasas de empleo sustancialmente más bajas y muestran una **recuperación más lenta y volátil**. Esto confirma la persistencia de **disparidades estructurales profundas** entre el centro-norte y el sur de Europa, que trascienden el tamaño poblacional.
+
+
+```{r, results='asis'}
+emp_rate_pareto_UE_ts <- TASA_EMPLEO %>%
+  filter(geo %in% emp_pareto_UE$geo, age == "Y15-64", sex == "T", TIME_PERIOD < 2025) %>%
+  as_tsibble(key = full_name, index = TIME_PERIOD) 
+
+
+serie_pareto_UE <- emp_rate_pareto_UE_ts %>% 
+  rename(País = full_name) %>%
+  ggplot(aes(x = TIME_PERIOD, y = emp_rate, colour = País, group = País, text = paste(
+               "País:", País,
+               "<br>Año:", TIME_PERIOD,
+               "<br>Tasa de empleo:", round(emp_rate, 2), "%"
+             ))) +
+  geom_line(size = 0.7) +
+  theme_bw(base_size = 14) +
+  labs(
+    x = "Año", 
+    y = "Tasa de empleo (%)",
+    title = "Evolución de la tasa de empleo en países de la UE"
+  )
+
+ggplotly(serie_pareto_UE, width = 800, height = 500, tooltip = "text") %>%
+  layout(
+    title = list(
+      text = paste0(
+        "<b>Tasa de empleo - Población 15-64 años (2000-2024)</b><br>"
+      ),
+      font = list(size = 16)
+    ),
+    margin = list(t = 70)  
+  )
+```
+
+Esta divergencia en el desempeño per cápita **plantea la pregunta central sobre sus causas**. La explicación probable se encuentre en las **estructuras productivas subyacentes** de cada país. Para comprobarlo, el análisis debe dar un paso decisivo: examinar la **composición sectorial del empleo** en estas naciones. Comprender si los países con mejor desempeño per cápita se especializan en sectores más dinámicos y de mayor valor añadido será clave para desentrañar las raíces de estas brechas persistentes.
+
+
+
+
+
+### La estructura productiva: tres modelos sectoriales en Europa
+
+El análisis de la composición sectorial del empleo en los países clave revela el **motor estructural** detrás de las tendencias agregadas. Se confirma el **dominio absoluto y creciente del sector terciario** (servicios) en todos los casos, consolidándose como el principal generador de empleo en la UE.
+
+Sin embargo, las **trayectorias nacionales divergen** en tres modelos claros:
+
+*   **Economías avanzadas (Alemania, Francia, Países Bajos, Suecia)** mantienen un sector secundario (industria) robusto, alrededor del 20-30%, junto a una terciarización muy alta y un sector primario residual. Esta **combinación equilibrada** parece sustentar sus altas tasas de empleo per cápita.
+*   **Economías del Sur (Italia, España)** muestran una **terciarización acelerada** acompañada de una **desindustrialización relativa**. Este modelo podría relacionarse con una mayor precariedad y la creación de empleos de menor valor añadido en servicios, lo que explicaría en parte sus tasas de empleo per cápita más bajas y volátiles.
+*   **Economías en transición (Polonia, Chequia, Rumanía)** evidencian una **transformación estructural profunda**. Se observa un drástico declive del empleo agrícola, especialmente marcado en Rumanía, y un crecimiento sólido y simultáneo en industria (muy notable en Chequia y Polonia) y servicios.
+
+```{r, results='asis', fig.asp=0.7}
+sector_primario <- c("A")
+sector_secundario <- c("B-E","C","F")
+sector_terciario <- c("G-J","K-N","O-U")
+
+EMPLEO_sectores <- EMPLEO %>%
+  mutate(sector = case_when(
+    nace_r2 %in% sector_primario ~ "Primario",
+    nace_r2 %in% sector_secundario ~ "Secundario",
+    nace_r2 %in% sector_terciario ~ "Terciario",
+    TRUE ~ NA_character_
+  )) %>%
+  filter(!is.na(sector))
+
+emp_pareto_UE_sector_ts <- EMPLEO_sectores %>%
+  filter(geo %in% emp_pareto_UE$geo, wstatus == "EMP", TIME_PERIOD < 2023) %>%
+  group_by(full_name, TIME_PERIOD, sector) %>%
+  summarise(
+    emp_per_working_age = sum(emp_per_working_age),
+  ) %>%
+  ungroup() %>%
+  as_tsibble(key = c(full_name, sector), index = TIME_PERIOD)
+
+serie_pareto_UE_sector <- emp_pareto_UE_sector_ts %>% 
+  rename(País = full_name, Año = TIME_PERIOD, `Tasa en edad de trabajar` = emp_per_working_age, Sector = sector) %>%
+  mutate(`Tasa en edad de trabajar` = round(`Tasa en edad de trabajar`*100, 2)) %>%
+  autoplot(`Tasa en edad de trabajar`, aes(color = Sector)) + 
+  facet_wrap(~País, scale="free_y") +
+  theme_bw(base_size = 14) +
+  labs(
+    x = "",
+    y = ""
+  ) +
+  guides(color = guide_legend(title = "Sector")) +
+  theme(axis.text.x = element_text(
+    angle = 45,
+    hjust = 1
+  ), axis.title.y = element_text(margin = margin(r = 15)), 
+        panel.spacing = unit(3.8, "lines")
+  ) +
+  scale_y_continuous(labels = scales::percent_format(scale = 1))
+
+ggplotly(serie_pareto_UE_sector) %>%
+  layout(
+    title = list(
+      text = paste0(
+        "<b>Tasa de empleo por sectores entre 2000 y 2022</b><br>"
+      ),
+      font = list(size = 16)
+    ),
+    margin = list(t = 80)
+  )
+```
+
+Estos modelos productivos plantean una pregunta crucial: **¿se traducen estas estructuras económicas en una distribución similar del empleo entre hombres y mujeres?**
+
+
+
+
+
+
+
+### Composición por sexo del empleo en los países clave (2024)
+
+El análisis de la **composición por sexo del empleo** en 2024 en los países clave revela un **panorama de avance desigual**. 
+
+Se observa una **representación notablemente equilibrada** entre hombres y mujeres en economías como **Suecia, Francia, Alemania y Países Bajos**, lo que refleja mercados laborales maduros con una alta y consolidada integración femenina, correlacionando con sus menores brechas de género.
+
+Sin embargo, persisten **disparidades estructurales** que siguen un patrón geográfico claro. **Italia y Rumanía** mantienen una significativa sobrerrepresentación masculina, mientras que **España, Chequia y Polonia** presentan brechas moderadas pero aún perceptibles.
+
+Esta fotografía confirma que, aunque la **convergencia de género avanza**, su ritmo y profundidad están **condicionados por factores culturales y estructurales específicos de cada país**, muchos de los cuales están ligados a los modelos productivos y de bienestar previamente identificados. El siguiente y crucial paso será **integrar esta dimensión de género en el análisis evolutivo**, examinando cómo ha cambiado esta composición a lo largo del tiempo y cómo se relaciona con la transformación sectorial de cada economía.
+
+```{r}
+tasa_empleo_sexo_EU <- TASA_EMPLEO %>%
+  filter(geo %in% emp_pareto_UE$geo, sex != "T", age == "Y15-64", TIME_PERIOD == 2024) %>%
+  group_by(full_name) %>%
+  mutate(
+    porcentaje = emp_rate / sum(emp_rate)
+  ) %>%
+  ungroup()
+
+colores_set1 <- RColorBrewer::brewer.pal(3, "Set1")
+colores <- c("M" = colores_set1[1], "F" = colores_set1[2])
+
+paises <- unique(tasa_empleo_sexo_EU$full_name)
+n <- length(paises)
+cols <- 3
+rows <- ceiling(n / cols)
+
+margin <- 0.08
+cell_width <- (1 - (cols + 1) * margin) / cols
+cell_height <- (1 - (rows + 1) * margin) / rows
+
+fig <- plot_ly()
+
+i <- 1
+for(pais in paises){
+  df <- tasa_empleo_sexo_EU %>% filter(full_name == pais)
+  
+  row_pos <- floor((i-1)/cols)
+  col_pos <- (i-1) %% cols
+  
+  x_start <- margin + col_pos * (cell_width + margin)
+  x_end <- x_start + cell_width
+  y_start <- margin + (rows - row_pos - 1) * (cell_height + margin)
+  y_end <- y_start + cell_height
+  
+  fig <- fig %>% add_pie(
+    data = df,
+    labels = ~sex,
+    values = ~porcentaje,
+    name = pais,
+    textinfo = 'none',
+    textposition = 'none',
+    insidetextorientation = 'radial',
+    marker = list(colors = colores),
+    hovertemplate = ~paste0(
+      "Sexo: ", ifelse(sex == "M", "Hombres", "Mujeres"), "<br>",
+      "<b>Porcentaje: ", round(porcentaje * 100, 1), "%</b><br>",
+      "Tasa de empleo: ", round(emp_rate, 1), "%<extra></extra>"
+    ),
+    domain = list(
+      x = c(x_start, x_end),
+      y = c(y_start, y_end)
+    ),
+    showlegend = FALSE
+  )
+  
+  fig <- fig %>% add_annotations(
+    x = (x_start + x_end) / 2,
+    y = y_end + 0.055,
+    text = paste0("<b>", pais, "</b>"),
+    showarrow = FALSE,
+    xref = "paper",
+    yref = "paper",
+    font = list(size = 14),
+    xanchor = "center"
+  )
+  
+  i <- i + 1
+}
+
+fig <- fig %>% layout(
+  title = list(
+    text = "<b>Porcentaje de mujeres y hombres con empleo por país (2024)</b><br>",
+    x = 0.5,
+    y = 1.02,  
+    font = list(size = 14)
+  ),
+  showlegend = FALSE,
+  margin = list(t = 60, b = 50, l = 50, r = 50),
+  annotations = list(
+    list(
+      x = 0.5, 
+      y = -0.05,
+      text = paste0("Sexo: <span style='color:", colores["M"], "'>Mujeres</span> | <span style='color:", colores["F"], "'>Hombres</span>"),
+      showarrow = FALSE,
+      xref = "paper",
+      yref = "paper",
+      font = list(size = 12)
+    )
+  )
+)
+
+fig
+```
+
+El siguiente y crucial paso será **profundizar en esta dimensión de género incorporando la variable etaria**, examinando cómo se distribuye la participación laboral entre hombres y mujeres **en diferentes grupos de edad**.
+
+
+
+
+
+
+
+### Brechas por edad y sexo: un análisis generacional del empleo
+
+El análisis de la **tasa de empleo por sexo y grupo de edad** desvela patrones críticos que la visión agregada ocultaba, confirmando que las brechas tienen **raíces demográficas y de ciclo vital**.
+
+**Suecia y Países Bajos** no solo lideran en tasas agregadas, sino que **minimizan las disparidades en todos los grupos de edad**, especialmente entre adultos (25-54 años), mostrando mercados laborales maduros e integradores.
+
+En **Francia, Alemania, Chequia, Polonia y Rumanía** el patrón es sólido pero con **brechas de género que se amplían notablemente en el grupo de 55-64 años**, sugiriendo desafíos persistentes en la retención y prolongación de la vida laboral femenina.
+
+La situación es más crítica en **España e Italia**. Aquí se observa una **doble penalización**: tasas de empleo juvenil (15-24 años) muy bajas para ambos sexos, y **brechas de género que se abren temprano y persisten en todas las cohortes**, especialmente en las edades centrales (25-54 años). Esto refleja **barreras estructurales profundas** relacionadas con la conciliación y la segregación sectorial.
+
+Este diagnóstico por edad y sexo proporciona el **enlace definitivo** entre la estructura económica y los resultados sociales. Las economías con modelos productivos equilibrados y sistemas de apoyo robustos (Norte/Oeste) logran mayor equidad a lo largo de toda la vida laboral. Las economías con terciarización precaria y débil apoyo familiar (Sur) reproducen y amplifican las desigualdades generacionales y de género.
+
+
+```{r}
+div_palette <- hcl.colors(100, "YlGnBu", rev = TRUE)
+
+tasa_empleo_heatmap_UE <- TASA_EMPLEO %>%
+  filter(NUTS == 0, EU27_2020 == "SI", sex != "T", age %in% c("Y15-24","Y25-34","Y35-44","Y45-54","Y55-64"), geo %in% emp_pareto_UE$geo, TIME_PERIOD == 2024) %>%
+  group_by(geo, full_name, sex, age) %>%
+  summarise(tasa = mean(emp_rate, na.rm = TRUE), .groups = "drop") %>%
+  mutate(atributo.combinado = paste0(sex, "/", age))
+
+min_tasa <- min(tasa_empleo_heatmap_UE$tasa, na.rm = TRUE)
+max_tasa <- max(tasa_empleo_heatmap_UE$tasa, na.rm = TRUE)
+
+heatmap_UE <- ggplot(tasa_empleo_heatmap_UE,
+                     aes(x = atributo.combinado, y = full_name, fill = tasa, text = paste0(
+    full_name, " ", atributo.combinado, "<br>",
+    "Tasa: ", round(tasa, 2), "%")
+  )) +
+  geom_tile(color = "grey80") +
+  scale_fill_gradientn(
+    colors = div_palette,
+    limits = c(min_tasa, max_tasa),
+    name = "Tasa de empleo (%)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "right",
+        panel.grid = element_blank()) +
+  labs(x = "", y = "",
+       title = "Tasa de empleo por sexo/edad y país en la UE",
+       subtitle = "Aglomerado EU27_2020 (2024)")
+
+ggplotly(heatmap_UE, tooltip = "text")
+```
+
+
+
+
+
+### Consolidación del modelo laboral asalariado en España
+
+El descenso a nivel subnacional confirma la consolidación del **modelo de empleo asalariado** en España. En todas las CCAA analizadas, que representan el 80% del empleo nacional, los trabajadores por cuenta ajena constituyen la **abrumadora mayoría** y muestran una trayectoria de recuperación sostenida tras las crisis de 2008 y 2020.
+
+En contraste, el **empleo autónomo** mantiene una **tendencia estable o descendente** en la mayoría de regiones, reduciendo progresivamente su peso relativo. Este patrón es coherente con la terciarización y la estructura productiva española, que se aleja de sectores tradicionales con mayor presencia de cuenta propia.
+
+Se observan, sin embargo, **matices regionales**: comunidades con economías más diversificadas y de mayor valor añadido, como **Madrid, Cataluña y el País Vasco**, presentan las tasas más altas y estables de asalariados. Otras como **Canarias, Andalucía o Galicia** muestran mayor variabilidad, lo que podría reflejar una mayor dependencia de sectores estacionales o de menor productividad.
+
+```{r, results='asis', fig.asp=0.7}
+ccaa_pareto <- EMPLEO %>%
+  filter(substr(geo, 1, 2) == "ES", NUTS == 2, wstatus == "EMP", nace_r2 == "TOTAL") %>% 
+  filter(employment > ParetoValue(employment, 0.8)) 
+
+emp_ccaa_pareto <- EMPLEO %>%
+  filter(substr(geo, 1, 2) == "ES", full_name %in% ccaa_pareto$full_name, NUTS == 2, wstatus != "EMP", nace_r2 == "TOTAL") %>%
+  as_tsibble(index = TIME_PERIOD, key = c(full_name, wstatus))
+
+emp_ccaa_pareto <- emp_ccaa_pareto %>%
+  mutate(
+    wstatus = factor(
+      wstatus,
+      levels = c("SAL", "SELF"),
+      labels = c("Asalariados", "Autónomos")
+    )
+  )
+
+serie_emp_ccaa_pareto <- emp_ccaa_pareto %>%
+  rename(Año = TIME_PERIOD, `Tasa en edad de trabajar` = emp_per_working_age, `Tipo de empleo` = wstatus) %>%
+  mutate(`Tasa en edad de trabajar` = round(`Tasa en edad de trabajar`*100, 2)) %>%
+  autoplot(
+    `Tasa en edad de trabajar`, 
+    aes(color = `Tipo de empleo`)
+  ) +
+  facet_wrap(~full_name) +
+  theme_bw(base_size = 14) +
+  labs(
+    x = "",
+    y = ""
+  ) +
+  scale_color_manual(
+    values = c("Asalariados" = "#1f78b4", "Autónomos" = "#33a02c")
+  ) +
+  guides(color = guide_legend(title = "Tipo de empleo")) +
+  theme(axis.text.x = element_text(
+    angle = 45,
+    hjust = 1
+  ), axis.title.y = element_text(margin = margin(r = 15)),
+        panel.spacing = unit(3, "lines")
+  ) +
+  scale_y_continuous(labels = scales::percent_format(scale = 1))
+
+ggplotly(serie_emp_ccaa_pareto) %>%
+  layout(
+  margin = list(t = 80),
+  annotations = list(
+    text = "<b>Tasa de empleo por tipo en las CCAA (2000-2023)</b><br><sup>CCAA que cubren el 80% del empleo en España</sup>",
+    x = 0.5,   
+    y = 1.13, 
+    xref = "paper",
+    yref = "paper",
+    showarrow = FALSE,
+    font = list(size = 16)
+  )
+)
+```
+
+El predominio del empleo asalariado oculta otra dimensión crucial de la calidad del empleo: **la brecha generacional**. Para evaluarla, analizamos la relación entre el empleo juvenil (15-24 años) y adulto en las CCAA españolas en 2024.
+
+
+
+
+
+### Dos Españas generacionales: rigidez en el norte vs absorción juvenil en el sur y las islas
+
+El gráfico de dispersión revela un patrón geográfico claro. Las comunidades con **mayores brechas** (tonos rojos intensos) son principalmente **regiones del norte** con estructuras productivas más rígidas o envejecidas, como Cantabria, País Vasco, Asturias, Galicia y La Rioja. Esto podría reflejar mercados laborales menos dinámicos, con menor rotación y oportunidades de entrada para los jóvenes.
+
+Por el contrario, las **menores brechas** se observan en **economías más diversificadas y dinámicas**: las Islas (Baleares y Canarias), la Comunidad Valenciana, Cataluña y Madrid. Estos territorios, con sectores turísticos, logísticos y de servicios avanzados, parecen absorber mejor a la población juvenil, aunque esto no necesariamente implica mayor calidad del empleo.
+
+
+```{r}
+tasa_empleo_adulto_vs_joven <- TASA_EMPLEO %>%
+  filter(substr(geo, 1, 2) == "ES", NUTS == 2, sex == "T", TIME_PERIOD == 2024) %>%
+  select(geo, full_name, age, emp_rate) %>%
+  pivot_wider(names_from = age, values_from = emp_rate) %>%
+  mutate(
+    empleo_adulto = round(rowMeans(select(., `Y25-34`, `Y35-44`, `Y45-54`), na.rm = TRUE), 1)
+  ) %>%
+  rename(empleo_juvenil = `Y15-24`) %>%
+  select(full_name, empleo_juvenil, empleo_adulto) %>%
+  filter(!is.na(empleo_juvenil) & !is.na(empleo_adulto))
+
+tasa_empleo_adulto_vs_joven$diferencia <- tasa_empleo_adulto_vs_joven$empleo_adulto - tasa_empleo_adulto_vs_joven$empleo_juvenil
+
+
+fig <- plot_ly() %>%
+  add_trace(
+    data = tasa_empleo_adulto_vs_joven,
+    x = ~empleo_adulto,
+    y = ~empleo_juvenil,
+    type = 'scatter',
+    mode = 'markers',
+    marker = list(
+      line = list(color = "black", width = 1),
+      size = 10,
+      color = ~diferencia,
+      colorscale = list(c(0, 0.5, 1), c("green", "yellow", "red")),
+      cmin = min(tasa_empleo_adulto_vs_joven$diferencia),
+      cmax = max(tasa_empleo_adulto_vs_joven$diferencia),
+      colorbar = list(
+        title = "Brecha empleo<br>(Adulto - Juvenil)",
+        titleside = "right"
+      ),
+      opacity = 0.8
+    ),
+    text = ~paste(
+      "<b>CCAA:", full_name, "</b>",
+      "<br>Empleo juvenil (15-24):", round(empleo_juvenil, 1), "%",
+      "<br>Empleo adulto (25-54):", round(empleo_adulto, 1), "%",
+      "<br>Diferencia:", round(diferencia, 1), "%"
+    ),
+    hoverinfo = 'text',
+    name = "Países"
+  ) %>%
+  layout(
+    title = "<b>Relación entre Empleo Juvenil y Adulto en España 2024</b>",
+    xaxis = list(title = "Tasa empleo 25-54 años (%)"),
+    yaxis = list(title = "Tasa empleo 15-24 años (%)"),
+    hovermode = 'closest',
+    showlegend = FALSE,
+    hoverlabel = list(bgcolor = "white", font = list(size = 12))
+  )
+
+fig
+```
+
+
+
+
+
+###  Evolución estructural de la economía canaria
+
+El análisis de la evolución sectorial en Canarias (2000-2022) revela una **profunda transformación estructural** hacia un modelo económico altamente especializado y vulnerable.
+
+**Tres sectores definen la trayectoria del empleo en las islas:**
+
+1.  **Turismo como columna vertebral:** El conglomerado **comercio-transporte-hostelería** concentra entre el 20% y 24% del empleo, mostrando una **extrema sensibilidad** a shocks externos (crisis de 2008, pandemia de 2020). Su comportamiento cíclico dicta el ritmo del conjunto del mercado laboral canario.
+
+2.  **Expansión del sector público:** La **administración pública, sanidad y educación** muestra un **crecimiento sostenido y acelerado**, especialmente desde 2015, superando el 14% del empleo total. Se consolida como un pilar contracíclico y en expansión, incrementando la resiliencia pero también la dependencia de fondos públicos.
+
+3.  **Declive de sectores tradicionales:** La **construcción** no ha recuperado los niveles previos al colapso de 2008, estabilizándose en un peso moderado (3-4%). Mientras, la **agricultura** e **industria** mantienen una **trayectoria de declive estructural**, reduciéndose a una participación marginal (en torno al 1.5% y 2.5%, respectivamente).
+
+**Sectores emergentes con potencial:** Se observa un crecimiento notable, aunque desde bases muy pequeñas, en **actividades inmobiliarias** y de **entretenimiento y arte**, probablemente ligados al propio dinamismo del turismo y a cambios en los patrones de consumo.
+
+En conjunto, el gráfico confirma una economía **hiper-terciarizada y dual**: un núcleo volátil ligado al turismo, un sector público en expansión como estabilizador, y una base productiva tradicional (agro-industria) en retroceso continuo. Esta especialización plantea importantes desafíos de diversificación y resiliencia económica para el archipiélago.
+
+```{r}
+tb <- EMPLEO %>% 
+      filter(NUTS == 2, wstatus == "EMP", full_name == "Canarias", nace_r2.name %in% c("Agric./Ganad./Pesca", "Construcción", "Industria", "Comer./Transp./Hostel.", "Finanzas/Seguros", "Inmobiliario", "Adm./Sanid./Educ./Defen.", "Información/Comunic.", "Entreten./Arte/Hogar"), TIME_PERIOD <= 2022) %>%
+      mutate(emp_per_working_age = emp_per_working_age * 100)
+
+ tb_plot <- tb %>% 
+    rename(Sector = nace_r2.name, Año = TIME_PERIOD, `Tasa de empleo en edad de trabajar` =  emp_per_working_age) %>%
+    mutate(`Tasa de empleo en edad de trabajar` = round(`Tasa de empleo en edad de trabajar`, 2))
+  
+  tb_p <- tb_plot %>%
+    as_tsibble(key = Sector, index = Año) %>%
+    autoplot(`Tasa de empleo en edad de trabajar`, aes(color = Sector, group = 1)) +
+    facet_wrap(~Sector, scales =  "free_y", nrow = 3) +
+    theme_bw(base_size = 14) +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+      axis.text.y = element_text(size = 10),
+      strip.text = element_text(size = 8, margin = margin(2, 0, 2, 0)),
+      panel.spacing = unit(3.0, "lines"),
+      legend.position = "none"
+    ) +
+    scale_x_continuous(breaks = scales::pretty_breaks(n = 6)) +
+    scale_y_continuous(labels = scales::percent_format(scale = 1)) +
+    labs(x = "", y = "")
+  
+  ggplotly(tb_p) %>%
+    layout(title = list(
+      text = "<b>Evolución de los principales sectores económicos de Canarias (2000-2022)</b>",
+      font = list(size = 16, family = "Arial", color = "black"),
+      x = 0.5,
+      xref = "paper",
+      y = 1.18,  
+      yref = "paper"
+    ),
+      margin = list(t = 80),
+      font = list(size = 10)
+    ) %>%
+    style(
+      hoverlabel = list(font = list(size = 12))
+    ) %>%
+    config(displayModeBar = FALSE)
+
+```
+
+
+
+### Reducción significativa de la brecha de género en Canarias
+
+El análisis de la evolución de la tasa de empleo por sexo en Canarias revela un **progreso notable hacia la equidad**, aunque con una desigualdad persistente.
+
+La comparación entre 2000 y 2024 muestra una **transformación profunda**. A principios de siglo, la brecha era **abismal**, con una diferencia de más de 30 puntos porcentuales entre hombres y mujeres. Esta disparidad se redujo drásticamente, no solo por el crecimiento del empleo femenino, sino también por la **severa contracción del empleo masculino** durante la crisis de 2008, que afectó desproporcionadamente a sectores como la construcción.
+
+Desde 2014, se consolida una **trayectoria convergente**: el empleo femenino crece de forma **sostenida y robusta**, mientras el masculino se recupera a un ritmo más moderado. Como resultado, la brecha se ha reducido a menos de un tercio de su tamaño inicial.
+
+Este avance refleja **cambios estructurales y sociales**, como la mayor cualificación de las mujeres, su creciente incorporación al sector servicios (dominante en Canarias) y posiblemente políticas de conciliación. Sin embargo, la **brecha persiste**, indicando que **barreras profundas** –como la segregación sectorial, los techos de cristal y la desigual distribución de los cuidados– continúan limitando la plena equidad en el mercado laboral canario.
+
+```{r, results='asis'}
+IC_tasa_empleo_ts <- TASA_EMPLEO %>%
+  filter(geo == "ES70", age == "Y15-64", sex != "T") %>%
+  select(full_name, TIME_PERIOD, sex, emp_rate) %>%
+  mutate(sex = recode(sex, "F" = "Femenino", "M" = "Masculino")) %>%
+  as_tsibble(index = TIME_PERIOD, key = sex) 
+
+df <- IC_tasa_empleo_ts %>%
+  mutate(Sexo = recode(sex, "F" = "Femenino", "M" = "Masculino")) %>%
+  select(TIME_PERIOD, emp_rate, Sexo)
+
+df$TIME_PERIOD <- as.numeric(df$TIME_PERIOD)
+
+colors <- c("Femenino" = "#FFB6C1", "Masculino" = "#87CEEB")
+
+p <- plot_ly()
+
+for(sexo in unique(df$Sexo)){
+  df_sexo <- df %>% filter(Sexo == sexo)
+  
+  p <- p %>%
+    add_trace(
+      x = df_sexo$TIME_PERIOD,
+      y = df_sexo$emp_rate,
+      type = 'scatter',        
+      mode = 'lines+markers',  
+      name = sexo,
+      line = list(color = colors[sexo], width = 2),
+      marker = list(
+        color = colors[sexo], line = list(color = "black", width = 0.5), size = 6),
+      text = paste0(
+        "Año: ", df_sexo$TIME_PERIOD,
+        "<br>Tasa de empleo: ", round(df_sexo$emp_rate, 2), "%"
+      ),
+      hoverinfo = "text"
+    )
+}
+
+p <- p %>%
+  layout(
+    title = list(
+      text = "<b>Evolución del % de empleo según sexo</b><br><sup>Islas Canarias entre 2000 y 2024</sup>"
+    ),
+    xaxis = list(title = "Año"),
+    yaxis = list(title = "Tasa de empleo (%)"),
+    legend = list(title = list(text = "Sexo"))
+  )
+
+p
+```
+
+
+
+
+
+
+
+
+### Inserción laboral por rama de enseñanza en Canarias
+
+El análisis de la inserción laboral por rama de enseñanza en Canarias (2022) revela un patrón dominante de **superioridad universitaria**, con una excepción reveladora en el ámbito científico-técnico.
+
+En la mayoría de las ramas –**Ciencias Sociales y Jurídicas, Artes y Humanidades, Ingeniería y Arquitectura, e incluso en Ciencias de la Salud**– los **graduados universitarios** muestran una tasa de inserción laboral claramente superior. Esto confirma que, para estas áreas, la formación universitaria sigue siendo el camino preferente hacia el empleo cualificado en Canarias.
+
+Sin embargo, se identifica una **excepción estratégica en el ámbito de las Ciencias puras**. En esta rama, la **Formación Profesional** presenta una inserción laboral **significativamente mayor** que los estudios universitarios (Física, Matemáticas, Química, etc.). Este resultado es altamente revelador, ya que indica que **ciclos formativos técnicos** relacionados con energías, análisis de laboratorio, química industrial o alimentación están **mejor alineados con la demanda del mercado laboral canario** que las carreras científicas tradicionales.
+
+Este diagnóstico sugiere que, mientras la universidad sigue siendo la vía principal para la mayoría de profesiones, **existe un nicho crucial para la FP en aplicaciones técnicas y científicas prácticas**.
+
+
+```{r}
+datos_año <- INSERCION_LABORAL %>%
+    filter(TIME_PERIOD_CODE == as.numeric(2022)) %>%
+    mutate(rama_clean = str_replace_all(RAMA_ENSENIANZA_CODE, "_", " "))
+  
+  plot_ly(type = 'scatterpolar') %>%
+    add_trace(
+      r = ~c(datos_año$TASA_GRADO, datos_año$TASA_GRADO[1]),
+      theta = ~c(datos_año$rama_clean, datos_año$rama_clean[1]),
+      fill = 'toself',
+      name = 'Grado Universitario',
+      fillcolor = 'rgba(210, 180, 140, 0.6)',  
+      line = list(color = 'rgba(160, 120, 80, 0.9)', width = 2.5),  
+      marker = list(
+        symbol = 'circle',
+        size = 6,
+        color = 'rgba(160, 120, 80, 1)' 
+      ),
+      hovertemplate = '<b>%{theta}</b><br>Grado: <b>%{r:.1f}%</b><extra></extra>'
+    ) %>%
+    add_trace(
+      r = ~c(datos_año$TASA_FP, datos_año$TASA_FP[1]),
+      theta = ~c(datos_año$rama_clean, datos_año$rama_clean[1]),
+      fill = 'toself',
+      name = 'Formación Profesional', 
+      fillcolor = ' rgba(102, 212, 181, 0.6)',  
+      line = list(color = 'rgba(0, 158, 115, 0.9)', width = 2.5),  
+      marker = list(
+        symbol = 'circle',
+        size = 6,
+        color = 'rgba(0, 158, 115, 1)'
+      ),
+      hovertemplate = '<b>%{theta}</b><br>FP: <b>%{r:.1f}%</b><extra></extra>'
+    ) %>%
+    layout(
+      polar = list(
+        radialaxis = list(
+          visible = TRUE, 
+          range = c(0, 80),
+          tickvals = c(0, 20, 40, 60, 80),
+          ticktext = c("0%", "20%", "40%", "60%", "80%"),
+          gridcolor = 'rgba(200, 200, 200, 0.3)',
+          linecolor = 'rgba(150, 150, 150, 0.5)'
+        ),
+        angularaxis = list(
+          gridcolor = 'rgba(200, 200, 200, 0.3)',
+          linecolor = 'rgba(150, 150, 150, 0.5)'
+        ),
+        bgcolor = 'rgba(248, 249, 250, 0.3)'
+      ),
+      showlegend = TRUE,
+      title = list(
+        text = paste("<b>Comparativa por Rama de Enseñanza - 2022</b>"),
+        font = list(size = 16, color = '#2c3e50')
+      ),
+      legend = list(
+        orientation = "h",
+        x = 0.5,
+        xanchor = "center",
+        y = -0.15,  
+        yanchor = "top",
+        font = list(size = 12, color = '#2c3e50'),
+        bgcolor = 'rgba(255, 255, 255, 0.8)',
+        borderwidth = 1
+      ),
+      paper_bgcolor = 'rgba(255, 255, 255, 0.9)',
+      plot_bgcolor = 'rgba(255, 255, 255, 0.8)',
+      margin = list(t = 80, b = 100, l = 80, r = 80)
+    )
+```
+
+
+
+
+
+
+
+### Impacto visible de la reforma laboral de 2022 en Canarias
+
+La evolución de la tipología contractual en Canarias entre 2018, 2022 y 2024 ofrece una **clara radiografía del impacto inmediato** de la reforma laboral aprobada a finales de 2021.
+
+**El escenario previo (2018)** reflejaba un mercado laboral dominado por la **precariedad temporal**, donde los contratos de corta duración eran la norma, especialmente en sectores clave como el turismo. Esta alta rotación generaba inestabilidad y dificultaba la planificación tanto para trabajadores como para empresas.
+
+**El punto de inflexión (2022)** es evidente en los datos. A partir de su entrada en vigor, se observa un **cambio de tendencia abrupto**: los contratos temporales inician un **descenso pronunciado**, mientras que los indefinidos comienzan un **ascenso sostenido**. La reforma, al limitar severamente el uso de la temporalidad y fomentar la conversión a indefinidos, logró su objetivo principal de atacar la precariedad estructural.
+
+**El resultado consolidado (2024)** confirma la **transformación del modelo**: los contratos indefinidos han alcanzado una **superioridad clara** sobre los temporales. Esta mayor estabilidad tiene un efecto directo en la reducción de la **"búsqueda de trabajo"** recurrente. Los trabajadores, al tener contratos más duraderos, pasan menos tiempo en desempleo entre temporadas, lo que se traduce en **mayor seguridad económica, posibilidad de proyectar a medio plazo y, en definitiva, en una mejora sustancial de la calidad del empleo** en el archipiélago.
+
+La reforma, por tanto, ha reconfigurado significativamente el mercado laboral canario, impulsándolo hacia una mayor formalización y estabilidad.
+
+```{r, fig.asp = 0.7}
+anios <- c(2018, 2022, 2024)
+
+tb <- CONTRATOS_2018_2024 %>% 
+    filter(año %in% anios) %>% 
+    mutate(
+      mes = as.integer(mes), 
+      fecha = as.Date(paste(año, mes, "01", sep = "-"))
+    ) %>%
+    group_by(año, fecha, mes, Tipo.Contrato) %>%
+    summarise(Contratos = sum(Contratos), .groups = "drop") %>%
+    group_by(año, fecha, mes) %>%
+    mutate(
+      percentage = Contratos / sum(Contratos) * 100,
+      Total_Contratos = sum(Contratos)
+    ) %>%
+    ungroup() %>%
+    arrange(año, fecha, Tipo.Contrato)
+
+g <- tb %>%
+    ggplot(aes(
+      x = fecha,
+      y = percentage,
+      fill = Tipo.Contrato
+    )) +
+    geom_area(alpha = 0.85, position = "stack") +
+    geom_point(aes(text = paste0(
+      "Fecha: ", format(fecha, "%b %Y"), "<br>",
+      "Tipo: ", Tipo.Contrato, "<br>",
+      "Porcentaje: ", round(percentage, 1), "%<br>",
+      "Contratos: ", format(Contratos, big.mark = ","), "<br>",
+      "Total mes: ", format(Total_Contratos, big.mark = ",")
+    )), size = 0, alpha = 0) +
+    scale_fill_viridis_d(option = "D", name = "Tipo de contrato") +  
+    scale_y_continuous(labels = scales::percent_format(scale = 1)) +
+    theme_minimal() +
+    labs(x = "", y = "") +
+    facet_wrap(~ año, ncol = 1, scales = "free_x") + 
+    theme(
+      legend.position = "bottom",                    
+      legend.title = element_text(face = "bold"),
+      strip.text = element_text(size = 14, face = "bold"),
+      panel.spacing = unit(0.8, "lines")
+    )
+
+ggplotly(g, tooltip = "text", height = 800) %>%
+    layout(
+      title = list(
+        text = "<b>Evolución de la tipología contractual por año</b>",
+        font = list(size = 16, family = "Arial"),
+        x = 0.5,
+        xanchor = "center",
+        y = 2.35,
+        yanchor = "top"
+      ),
+      margin = list(l = 60, r = 60, b = 100, t = 100),  
+      hovermode = "x unified",
+      legend = list(
+        orientation = "h",          
+        title = list(text = "<b>Tipo de contrato</b>"),  
+        x = 0.5,                   
+        xanchor = "center",
+        y = -0.05,                 
+        yanchor = "top",
+        font = list(size = 12)
+      )
+    )
+```
+
+
+### Geografía municipal del empleo en Canarias
+
+La tasa de empleo por municipios revela la **dualidad geográfica** del mercado laboral canario, directamente vinculada a su modelo económico.
+
+Se observa una **notable homogeneidad en Fuerteventura y Lanzarote**, donde la mayoría de municipios presentan tasas de empleo elevadas y uniformes. Esta uniformidad es consecuencia de una **economía altamente especializada y concentrada** en el turismo de sol y playa, que actúa como un **motor económico único** que absorbe mano de obra de forma similar en todo el territorio, generando una distribución espacial del empleo muy equilibrada.
+
+Por el contrario, en **Gran Canaria y Tenerife** se aprecia una **mayor fluctuación y heterogeneidad** entre municipios. Esta diversidad refleja unas **economías insulares más complejas y diversificadas**. En estas islas, conviven:
+
+*   **Polos turísticos y de servicios** (como Las Palmas de Gran Canaria, Santa Cruz de Tenerife, Adeje o San Bartolomé de Tirajana) con tasas muy altas.
+
+*   **Municipios con economías más rurales o menos dinámicas**, orientadas a la agricultura, la administración local o pequeños servicios, que muestran tasas significativamente más bajas.
+
+*   **Áreas residenciales o dormitorio**, cuya población trabaja principalmente en los polos económicos cercanos.
+
+Este patrón confirma que, más allá de la especialización turística general, **existen importantes disparidades intrainsulares** vinculadas a la concentración de la actividad económica en núcleos específicos y a la diversificación relativa de los sectores productivos en las islas capitalinas.
+
+```{r}
+municipios.geoj <- geojson_read("geo_canarias_municipios.geojson",  what = "sp")
+
+municipios.geoj.tb <- municipios.geoj %>% 
+  as_tibble() %>%
+  select(municipio=etiqueta)
+
+tb <- municipios.geoj.tb %>% 
+    left_join(
+      EMPLEO_MUNICIPIOS %>%
+        select(label, geocode, !!sym("temp_t")),
+      join_by("municipio"=="label")
+    )
+
+etiquetas <-paste(
+    "<strong> ",tb$municipio,
+    "</strong><br>", prettyNum(round(tb[["temp_t"]],digits=2), big.mark = ",", scientific = FALSE)
+  )  %>%
+ lapply(htmltools::HTML)
+
+ MapaCoroplético(municipios.geoj, tb[[ "temp_t" ]],etiquetas,"Porcentaje", lng = -15.5, lat = 28.1, zoom = 7) 
+```
+
+
+
+
+
+## Modelado
+
+```{r}
+empleo_per_cap_construccion_ts <- EMPLEO %>%
+  filter(geo == "ES", wstatus == "EMP", nace_r2 == "F") %>%
+  select(full_name, TIME_PERIOD, emp_per_working_age) %>%
+  rename(Región = full_name) %>%
+  as_tsibble(index = TIME_PERIOD) %>%
+  fill_gaps()
+
+empleo_per_cap_construccion_ts_arima <- empleo_per_cap_construccion_ts %>%
+  model(ARIMA(emp_per_working_age))
+
+empleo_per_cap_turismo_ts <- EMPLEO %>%
+  filter(geo == "ES70", wstatus == "EMP", nace_r2 == "G-I") %>%
+  select(full_name, TIME_PERIOD, emp_per_working_age) %>%
+  rename(Región = full_name) %>%
+  as_tsibble(index = TIME_PERIOD) %>%
+  fill_gaps()
+
+empleo_per_cap_turismo_ts_arima <- empleo_per_cap_turismo_ts %>%
+  model(ARIMA(emp_per_working_age))
+```
+
+
+```{r}
+empleo_per_cap_turismo_tb_omit_covid <- EMPLEO %>%
+  filter(geo == "ES70", wstatus == "EMP", nace_r2 == "G-I") %>%
+  select(full_name, TIME_PERIOD, emp_per_working_age) %>%
+  filter(TIME_PERIOD <= 2019| TIME_PERIOD > 2022)
+
+empleo_per_cap_turismo_omit_covid_ts <- empleo_per_cap_turismo_tb_omit_covid %>%
+  rename(Región = full_name) %>%
+  as_tsibble(index = TIME_PERIOD) %>%
+  fill_gaps()
+```
+
+### Modelado ARIMA del sector construcción en España 
+
+El análisis de la serie temporal del empleo en la construcción en España mediante un **modelo ARIMA** confirma la **volatilidad extrema** que ha definido a este sector en las últimas décadas.
+
+El modelo logra **replicar con alta precisión** la dramática trayectoria histórica, capturando el **pico explosivo de la burbuja inmobiliaria (2007)** y el **colapso posterior** que marcó la Gran Recesión. Esta capacidad de ajuste a variaciones tan abruptas valida la idoneidad de la metodología para series con alta inestabilidad.
+
+Sin embargo, este mismo historial de **shocks extremos** —con fluctuaciones de amplitud excepcional— limita la **fiabilidad de una proyección lineal a futuro**. Una predicción directa (2024-2028) basada en este patrón pasado no sería robusta, ya que asume que la volatilidad histórica se mantendrá, algo improbable en un contexto regulatorio y económico cambiante.
+
+Por ello, para obtener una **proyección más estable y significativa**, se ha ajustado el punto de inicio de la predicción y los parámetros del modelo ARIMA. El objetivo no es predecir un nuevo ciclo de burbuja, sino **identificar una tendencia subyacente más estable** que sirva como línea base para evaluar la evolución del sector en un escenario de normalización, alejado de los extremos del pasado.
+
+```{r, fig.align='center'}
+tsa_ES <- empleo_per_cap_construccion_ts %>%
+  mutate(arima = NA, error = NA)
+
+for (i in 3:nrow(tsa_ES)){
+  yn <- tsa_ES$emp_per_working_age[i]
+  yn_1 <- tsa_ES$emp_per_working_age[i-1]
+  error_1 <- ifelse(is.na(tsa_ES$error[i-1]), 0, tsa_ES$error[i-1])
+  tsa_ES$arima[i] = (yn_1 + 0.7984*error_1)
+  tsa_ES$error[i] = (yn - tsa_ES$arima[i])
+}
+
+
+tsa_ES_long <- tsa_ES %>%
+  pivot_longer(emp_per_working_age:arima, names_to = "serie", values_to = "value") %>%
+  mutate(serie = factor(serie, levels = c("emp_per_working_age", "arima"),
+                       labels = c("emp_per_working_age" = "Datos reales", 
+                                 "arima" = "ARIMA")))
+
+plot <- tsa_ES_long %>%
+  ggplot(aes(TIME_PERIOD, value, colour = serie, group = serie, linetype = serie, text = paste(
+               "Año:", TIME_PERIOD,
+               "<br>Empleo en edad de trabajar:", round(value, 3)
+             ))) +
+  geom_line(size = 0.7) +
+  theme_bw(base_size = 14) +
+  labs(
+    x = "Año",
+    y = "Empleo per cápita",
+    colour = "Serie",
+    linetype = "Serie",
+    title = "Sector construcción en España"
+  ) +
+  scale_colour_manual(values = c("Datos reales" = "#F1BF00", "ARIMA" = "#AA151B")) +
+  scale_linetype_manual(values = c("Datos reales" = "solid", "ARIMA" = "solid")) +
+  theme(
+    strip.background = element_rect(fill = "white"),
+    strip.text = element_text(size = 12, face = "bold"),
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold")
+  )
+
+ggplotly(plot, tooltip = "text") %>%
+  layout(
+    legend = list(
+      orientation = "h",
+      xanchor = "center",
+      x = 0.5,
+      y = -0.25
+    )
+  )
+```
+
+
+
+
+### Proyección estabilizada para el sector de la construcción en España
+
+La proyección ARIMA ajustada para el sector de la construcción en España (2024-2028) apunta a una **trayectoria de estabilización moderada**, alejada de los ciclos extremos del pasado.
+
+Tras la recuperación posterior a la pandemia, el modelo proyecta un **crecimiento muy suave y sostenido** del empleo per cápita en el sector, con un incremento acumulado modesto hacia 2028. La banda de confianza del 95% (área sombreada) es relativamente estrecha, lo que sugiere un **grado de certidumbre mayor** que en periodos anteriores, precisamente porque no se anticipan shocks de la magnitud de la burbuja inmobiliaria.
+
+Este escenario refleja un **nuevo paradigma para el sector**: un crecimiento anclado en la **rehabilitación de edificios**, las **infraestructuras vinculadas a la transición verde y digital**, y una demanda ajustada, en lugar de en un nuevo ciclo especulativo. La proyección, por tanto, no predice un boom, sino una **consolidación en niveles sostenibles**, lo que implicaría un mercado laboral en este sector **menos volátil y más predecible** que en las dos décadas anteriores.
+
+```{r}
+ts_ES <- empleo_per_cap_construccion_ts
+
+p <- 2
+d <- 1
+q <- 2
+
+ARIMA_ES <-  ts_ES  %>%
+   filter(TIME_PERIOD >= 2015) %>%
+   model(ARIMA(emp_per_working_age ~ 1 + pdq(p,d,q)))
+
+forecast_ES <- ARIMA_ES %>%
+  forecast(h = "5 years")
+
+GraficoDinamicoArima95CI(ts_ES, "TIME_PERIOD", "emp_per_working_age", forecast_ES, "Predicción ARIMA - Sector Construcción España")
+```
+
+### Modelado ARIMA del sector turístico en Canarias
+
+La aplicación de un modelo ARIMA al empleo en el sector turístico de Canarias —el pilar de su economía— confirma su **patrón cíclico y su extrema sensibilidad a shocks externos**.
+
+El modelo replica con precisión su **volatilidad característica**: el crecimiento sostenido hasta 2008, la fuerte contracción durante la crisis financiera, la recuperación hasta 2019 y el **colapso histórico de 2020** debido a la pandemia. Esta capacidad de ajuste subraya que el sector opera como un **termómetro de la coyuntura global**, reaccionando con intensidad a crisis económicas y sanitarias.
+
+```{r, fig.align='center'}
+tsa_IC <- empleo_per_cap_turismo_ts %>%
+  mutate(arima = NA, error = NA)
+
+for (i in 3:nrow(tsa_IC)){
+  yn <- tsa_IC$emp_per_working_age[i]
+  yn_1 <- tsa_IC$emp_per_working_age[i-1]
+  tsa_IC$arima[i] = (0.6185*yn_1+0.0840)
+  tsa_IC$error[i] = (yn - tsa_IC$arima[i])
+}
+
+tsa_IC_long <- tsa_IC %>%
+  select(TIME_PERIOD, emp_per_working_age, arima) %>%
+  pivot_longer(emp_per_working_age:arima, 
+               names_to = "serie", 
+               values_to = "value") %>%
+  mutate(serie = factor(serie, 
+                        levels = c("emp_per_working_age", "arima"),
+                        labels = c("Datos reales", "ARIMA")))
+
+plot_IC <- ggplot(tsa_IC_long, aes(TIME_PERIOD, value, colour = serie, group = serie,
+                                   linetype = serie,
+                                   text = paste("Año:", TIME_PERIOD,
+                                                "<br>Empleo en edad de trabajar:", round(value,3)))) +
+  geom_line(size = 0.7) +
+  theme_bw(base_size = 14) +
+  labs(
+    x = "Año",
+    y = "Empleo per cápita",
+    colour = "Serie",
+    linetype = "Serie",
+    title = "Sector turístico en Canarias"
+  ) +
+  scale_colour_manual(values = c("Datos reales" = "#fada28", "ARIMA" = "#0768A9")) +
+  scale_linetype_manual(values = c("Datos reales" = "solid", "ARIMA" = "solid")) +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold")
+  )
+
+# Convertir a plotly
+ggplotly(plot_IC, tooltip = "text") %>%
+  layout(
+    legend = list(
+      orientation = "h",
+      xanchor = "center",
+      x = 0.5,
+      y = -0.25
+    )
+  )
+```
+
+
+### Proyección errática del sector turístico en Canarias: el lastre del shock pandémico
+
+La proyección ARIMA resultante para el sector turístico canario, generada a partir de la serie histórica completa, es **poco alentadora y estadísticamente poco fiable**. El modelo, al incorporar el colapso sin precedentes de 2020, interpreta este shock exógeno extremo como parte de su patrón cíclico inherente. Como consecuencia, la predicción a medio plazo (2023-2028) **se ve lastrada por este "recuerdo" estadístico**, proyectando un estancamiento e incluso una ligera tendencia a la baja, con una amplia banda de confianza que refleja la alta incertidumbre.
+
+```{r}
+ts_IC <- empleo_per_cap_turismo_ts
+
+p <- 1
+d <- 1
+q <- 1
+
+ARIMA_IC<-  ts_IC  %>%
+   filter(TIME_PERIOD >= 2015) %>%
+   model(ARIMA(emp_per_working_age ~ 1 + pdq(p,d,q)))
+
+forecast_IC <- ARIMA_IC %>%
+  forecast(h = "5 years")
+
+GraficoDinamicoArima95CI(ts_IC, "TIME_PERIOD", "emp_per_working_age", forecast_IC, "Predicción ARIMA - Sector Turismo Canarias")
+```
+
+Este resultado no es una previsión realista del futuro del turismo en las islas, sino un **artefacto metodológico** que evidencia una limitación clave: los modelos de series temporales clásicos, como el ARIMA, **no están diseñados para absorber adecuadamente shocks únicos de magnitud histórica** sin un tratamiento previo específico. La predicción "nefasta" es, en esencia, el modelo intentando predecir la repetición de un evento altamente improbable.
+
+Por ello, para obtener una **proyección útil y significativa**, es necesario realizar un **ajuste de la serie histórica**. El siguiente paso lógico será **eliminar el intervalo de tiempo del COVID-19** y posteriormente, mediante la interpolación tratar de suplir esos huecos.
+
+### Proyección ARIMA depurada: la tendencia subyacente del turismo canario
+
+```{r}
+empleo_per_cap_turismo_omit_covid.arima <- empleo_per_cap_turismo_omit_covid_ts %>%
+  model(ARIMA(emp_per_working_age))
+
+empleo_per_cap_turismo_fill_covid <- empleo_per_cap_turismo_omit_covid.arima %>%
+  interpolate(empleo_per_cap_turismo_omit_covid_ts)
+
+empleo_per_cap_turismo_omit_covid_ts_renamed <- empleo_per_cap_turismo_omit_covid_ts %>%
+  rename(
+    "Año" = TIME_PERIOD,
+    "Empleo en edad de trabajar" = emp_per_working_age
+  )
+
+p2 <- empleo_per_cap_turismo_omit_covid_ts_renamed %>%
+  autoplot(size = 0.7, color = "black") + 
+  geom_point(data = filter(empleo_per_cap_turismo_omit_covid_ts_renamed, Año == 2023),
+             aes(x = Año, y = `Empleo en edad de trabajar`),
+             color = "black",
+             size = 1) +
+  theme_bw(base_size = 12) + 
+  labs(title = "Evolución del sector turístico en Canarias (sin periodo COVID)",
+       x = "Año", y = "Empleo per cápita")
+
+ggplotly(p2)
+```
+
+
+
+```{r}
+empleo_per_cap_turismo_fill_covid_renamed <- empleo_per_cap_turismo_fill_covid %>%
+  rename(
+    "Año" = TIME_PERIOD,
+    "Empleo en edad de trabajar" = emp_per_working_age
+  )
+
+p3 <- empleo_per_cap_turismo_fill_covid_renamed %>% 
+  autoplot(size = 0.7) + 
+  theme_bw(base_size = 12) + 
+  labs(title = "Evolución del sector turístico en Canarias (con interpolación del periodo COVID)",
+       x = "Año", y = "Empleo per cápita")
+
+ggplotly(p3)
+```
+
+```{r}
+ts_IC_int <- empleo_per_cap_turismo_fill_covid
+
+p <- 1
+d <- 1
+q <- 1
+
+ARIMA_IC_int<-  ts_IC_int  %>%
+   filter(TIME_PERIOD >= 2015) %>%
+   model(ARIMA(emp_per_working_age~ 1 + pdq(p,d,q)))
+
+forecast_IC_int <- ARIMA_IC_int %>%
+  forecast(h = "5 years")
+
+GraficoDinamicoArima95CI(ts_IC_int, "TIME_PERIOD", "emp_per_working_age", forecast_IC_int, "Predicción ARIMA del sector turístico tras interpolación")
+```
+
+Tras la interpolación de los datos correspondientes al shock pandémico, el modelo ARIMA sigue mostrando una proyección conservadora, aún influenciada por la profunda volatilidad histórica del sector. Dada la **distorsión persistente** que el evento COVID-19 imprime en la serie, y considerando la **fortaleza estructural y el peso determinante** del turismo en la economía canaria, se ha optado por complementar el análisis con un **escenario de crecimiento simulado**.
+
+Partiendo del último año de normalidad prepandemia (2019) como base sólida, se simula un **crecimiento anual constante del 0.1%** en el empleo del sector. Este escenario, aunque modesto, representa una **trayectoria más probable y estable** para un sector maduro y consolidado como el turístico canario. Refleja una expectativa de **consolidación y leve expansión** en un contexto de mercado saturado y creciente competencia global, alejada de los ciclos explosivos del pasado pero también de los colapsos excepcionales.
+
+### Proyección contrafactual: el crecimiento sostenido del turismo sin COVID-19
+
+```{r}
+empleo_per_cap_turismo_fill_covid_simulated <- empleo_per_cap_turismo_omit_covid_ts %>% 
+  mutate(
+    emp_per_working_age = case_when(
+      TIME_PERIOD == 2020 ~ 0.2371,
+      TIME_PERIOD == 2021 ~ 0.2386,
+      TIME_PERIOD == 2022 ~ 0.2390,
+      TIME_PERIOD == 2023 ~ 0.2401,
+      TRUE ~ .[[3]] 
+    )) %>%
+  rename("Año" = TIME_PERIOD,
+    "Empleo en edad de trabajar" = emp_per_working_age)
+
+p <- empleo_per_cap_turismo_fill_covid_simulated %>% 
+  autoplot(size=0.7) + 
+  theme_bw(base_size = 14) + 
+  labs(title = "Evolución del sector turístico en Canarias (simulación COVID)", x="Año", y="Empleo per cápita")
+ggplotly(p)
+```
+
+El escenario depurado de la anomalía pandémica nos permite plantear una proyección contrafactual significativa: **¿cómo hubiera evolucionado el empleo en el sector turístico canario si no se hubiera producido el shock del COVID-19?**
+
+```{r}
+ts_IC_sim <- empleo_per_cap_turismo_fill_covid_simulated
+
+p <- 1
+d <- 1
+q <- 1
+
+ARIMA_IC_sim<-  ts_IC_sim  %>%
+   filter(Año >= 2015) %>%
+   model(ARIMA(`Empleo en edad de trabajar`~ 1 + pdq(p,d,q)))
+
+forecast_IC_sim <- ARIMA_IC_sim %>%
+  forecast(h = "5 years")
+
+GraficoDinamicoArima95CI(ts_IC_sim, "Año", "Empleo en edad de trabajar", forecast_IC_sim, "Predicción ARIMA - Sector Turismo Canarias (Simulación)")
+```
+
+La respuesta que ofrece el modelo ARIMA ajustado es clara: **el sector habría mantenido una senda de crecimiento sostenido y estable.** Al eliminar la distorsión histórica de 2020-2021, la tendencia subyacente que se revela es la de un **motor económico robusto y resiliente**, que tras superar la crisis financiera de 2008 había retomado una **trayectoria ascendente consistente.**
+
+**¿Qué significan esas zonas sombreadas?**
+
+Las áreas sombreadas representan intervalos de confianza en predicciones estadísticas, e indican el grado de certeza o incertidumbre asociado a una proyección futura.
+En otras palabras, son como paraguas de seguridad estadística. Nos preparan para diferentes escenarios futuros, reconociendo que el futuro siempre trae sorpresas, pero la mayoría de ellas caerán dentro de estos rangos predecibles.
+Cabe resaltar que, cuanto más nos adentramos en el futuro, menos seguros estamos y por eso las zonas son más amplias (existe mayor incertidumbre).
+
+```{r}
+tabla_grupos_edad <- TASA_EMPLEO %>%
+  filter(sex == "T", age != "Y_GE65") %>%  
+  mutate(
+    grupo_edad = case_when(
+      age %in% c("Y15-24", "Y25-34") ~ "Y15_34",
+      age %in% c("Y35-44", "Y45-54") ~ "Y35_54", 
+      age %in% c("Y55-64") ~ "Y55_64",  
+      TRUE ~ "Otros"
+    )
+  ) %>%
+  filter(grupo_edad != "Otros") %>%
+  group_by(geo, TIME_PERIOD, grupo_edad) %>%
+  summarise(
+    emp_rate = mean(emp_rate, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  pivot_wider(
+    names_from = grupo_edad,
+    values_from = emp_rate
+  )
+
+tabla_atributos <- KEY_INDICATORS %>%
+  left_join(EMPLEO %>% filter(NUTS == 0, wstatus == "EMP", nace_r2 == "TOTAL"), by = c("geo", "Year" = "TIME_PERIOD")) %>%
+  relocate(c("employment", "emp_per_working_age"), .after = Year) %>%
+  select(-(NUTS:working_age_population)) %>%
+  mutate(employment = employment * 1000, emp_per_working_age = emp_per_working_age * 100) %>%
+  left_join(GENDER_GAP %>% filter(NUTS == 0, age == "Y15-64"), by = c("geo", "Year" = "TIME_PERIOD")) %>%
+  relocate(c(`F`, `M`, "gender_gap"), .after = emp_per_working_age) %>%
+  rename("tasa_empleo_mujeres" = `F`, "tasa_empleo_hombres" = `M`) %>%
+  select(-(NUTS:`T`)) %>%
+  left_join(EMPLEO_Sectores %>% filter(wstatus == "EMP", NUTS == 0) %>% group_by(sector, geo, full_name, TIME_PERIOD) %>%
+              summarise(
+                emp_working_age_sector = sum(emp_per_working_age) * 100
+              ) %>% ungroup() %>%
+            pivot_wider(names_from = sector, values_from = emp_working_age_sector), by = c("geo", "Year" = "TIME_PERIOD")) %>%
+  relocate("Primario", "Secundario", "Terciario", .after = emp_per_working_age) %>%
+  rename("sector_primario_per_capita" = Primario, "sector_secundario_per_capita" = Secundario, "sector_terciario_per_capita" = Terciario) %>%
+  select(-full_name) %>%
+  left_join(tabla_grupos_edad, by = c("geo", "Year" = "TIME_PERIOD")) %>%
+  relocate(Y15_34, Y35_54, Y55_64, .after = sector_terciario_per_capita) %>%
+  rename("tasa_empleo(Y15/34)" = Y15_34, "tasa_empleo(Y35/54)" = Y35_54, "tasa_empleo(Y55/64)" = Y55_64) %>%
+  filter(nchar(geo) == 2)
+```
+
+### Correlación positiva entre PIB per cápita y peso del sector terciario
+
+El diagrama de dispersión, acompañado de un modelo de regresión lineal, revela una **correlación positiva muy fuerte (r ≈ 0.88)** entre el **PIB per cápita** de los países europeos analizados y el **peso del sector terciario (servicios)** en su economía.
+
+Esta relación es estadísticamente robusta y sugiere un **patrón estructural claro**: a mayor nivel de riqueza por habitante, mayor es la participación del sector servicios en el empleo total. Este hallazgo valida empíricamente la **ley de los tres sectores** (Ley de Clark), que postula que el desarrollo económico conlleva una transición desde una economía agraria hacia una industrial y, finalmente, hacia una dominada por los servicios.
+
+Esta fuerte correlación no implica causalidad directa, pero sí señala que el **desarrollo de un sector servicios dinámico y de alto valor añadido está intrínsecamente ligado a mayores niveles de prosperidad económica** a nivel nacional.
+
+
+```{r}
+tb_1 <-  tabla_atributos %>% 
+  select(Year,Country,x=`sector_terciario_per_capita`,y=GDP_per_capita) %>%  
+  na.omit()
+  
+  
+  tb_1 <- tb_1 %>% filter(Year == 2023)
+  
+  lambda <- 1
+  
+  fit <- lm(y ~ x,data=tb_1)
+  
+  tb_1 <- tb_1 %>%
+    mutate(`Country/Year`=paste0(Country," / ",Year)) %>%
+    select(-Country)
+  
+  slope_color <- ifelse(coef(fit)[2] < 0, "#DD5555", "#5566BB")
+  
+  p <- tb_1 %>%
+    ggplot(aes(x,y)) + 
+    geom_point(aes(color=`Country/Year`)) +
+    theme_bw(base_size = 12) +
+    theme(legend.position = "none") +
+    labs(x="Sector terciario per cápita", y="PIB per cápita") +
+    geom_smooth(method = lm, se = FALSE, color = slope_color) 
+  
+  ggplotly(p)  
+```
+
+
+### Correlación negativa entre sector primario y PIB per cápita
+
+Por el contrario, el análisis de correlación entre el **sector primario** (agricultura, ganadería, pesca) y el **PIB per cápita** revela una **relación negativa y significativa**.
+
+Inicialmente, la correlación entre ambas variables era moderadamente negativa (r ≈ -0.57). Para capturar con mayor precisión la relación no lineal subyacente, se aplicó una **transformación Yeo-Johnson** a los datos, una técnica que optimiza la normalización y la linealidad de la relación. Tras esta transformación, la **correlación se intensificó notablemente hasta r ≈ -0.82**, confirmando una **asociación inversa muy fuerte**.
+
+Este resultado es económicamente coherente y revelador: a **mayor peso del sector primario en la economía de un país, menor tiende a ser su nivel de riqueza por habitante**. El hallazgo gráfico y estadístico respalda la teoría del desarrollo estructural: las economías más avanzadas y ricas han transitado hacia actividades de mayor valor añadido (industria y servicios), mientras que una dependencia elevada de la agricultura y actividades extractivas se asocia, en el contexto europeo, con **menores niveles de desarrollo económico y productividad**.
+
+Este patrón refuerza la interpretación de las brechas territoriales dentro de la UE. Aquellas regiones (principalmente del sur y este) con una mayor participación del sector primario se enfrentan al **doble desafío** de una menor productividad agregada y una correlación estructural con un PIB per cápita más bajo.
+
+```{r}
+tb_2 <-  tabla_atributos %>% 
+  select(Year,Country,x=`sector_primario_per_capita`,y=GDP_per_capita) %>%  
+  na.omit()
+  
+  
+  tb_2 <- tb_2 %>% filter(Year == 2023)
+  
+  lambda <- optimize.yeojohnson.R2(tb_2$x, tb_2$y)
+  tb_2$y <- yeo.johnson(tb_2$y,lambda)
+  
+  fit <- lm(y ~ x,data=tb_2)
+  
+  tb_2 <- tb_2 %>%
+    mutate(`Country/Year`=paste0(Country," / ",Year)) %>%
+    select(-Country)
+  
+  slope_color <- ifelse(coef(fit)[2] < 0, "#DD5555", "#5566BB")
+  
+  p <- tb_2 %>%
+    ggplot(aes(x,y)) + 
+    geom_point(aes(color=`Country/Year`)) +
+    theme_bw(base_size = 12) +
+    theme(legend.position = "none") +
+    labs(x="Sector primario per cápita", y="PIB per cápita") +
+    geom_smooth(method = lm, se = FALSE, color = slope_color) 
+  
+  ggplotly(p)  
+```
+
+
+```{r}
+tabla_atributos_2 <- tabla_atributos %>% select(-only_basic_education, -till_secondary_education,
+                -tertiary_education, -extreme_poverty_share, -prevalence_undernourishment_share, 
+                -gender_wage_gap,	-immigrant_share_of_population, -extreme_poverty_number,
+                -education_expenditure_share_gdp,	-healthcare_expenditure_share_gdp, -land_use_in_hectares) %>%
+                  filter(geo != "MK") 
+```
+
+### Análisis de Componentes Principales (PCA)
+
+La visualización del análisis de componentes principales (PCA) revela la **estructura latente** que subyace a las múltiples variables socioeconómicas analizadas.
+
+El **Componente Principal 1 (eje X)**, que explica la mayor parte de la varianza, actúa claramente como un **eje de desarrollo económico y modernidad estructural**. Agrupa en su extremo positivo variables como un **alto PIB per cápita, elevado índice de desarrollo humano (IDH), mayor productividad y un peso significativo del sector terciario**. En el extremo negativo se sitúan variables asociadas a economías menos desarrolladas, como un **mayor peso del sector primario y una brecha de género más amplia**.
+
+El **Componente Principal 2 (eje Y)** parece capturar dimensiones más **demográficas y de sostenibilidad**, relacionadas con la **estructura etaria y el impacto ambiental**. Variables como la **edad media, la esperanza de vida y las emisiones per cápita** tienen una carga significativa en este eje.
+
+La **disposición de los países** en este espacio bidimensional es altamente informativa:
+
+*   Los **países nórdicos y centroeuropeos avanzados** (Alemania, Dinamarca, Austria) se agrupan en el cuadrante superior derecho, mostrando altos niveles en ambas componentes (desarrollo económico y características demográficas avanzadas).
+
+*   Países del **sur y este de Europa** (España, Italia, Croacia, Rumanía) se ubican en la parte izquierda o inferior del gráfico, reflejando puntuaciones más bajas en el eje de desarrollo económico moderno (Componente 1).
+
+Este análisis sintetiza y confirma de forma multivariante los patrones identificados a lo largo del estudio: la **división geográfica en la UE está fuertemente marcada por un clúster de países con economías terciarizadas, ricas y equitativas, frente a otro con mayor peso de sectores tradicionales, menor renta y mayores desigualdades**.
+
+```{r}
+tabla_atributos_2_na_omit <- tabla_atributos_2  %>% group_by(Country) %>% summarise(across(where(is.numeric), mean, na.rm = TRUE), .groups = "drop") %>%                 select(-any_of(c("geo", "Year"))) %>% na.omit()
+
+tb <- tabla_atributos_2_na_omit %>% 
+  column_to_rownames(var="Country") 
+
+pca <- prcomp(tb,scale = TRUE)
+
+hchart(pca,choices=c(1,2)) %>%
+  hc_chart(backgroundColor = "white") %>%
+  hc_tooltip(
+    useHTML = TRUE,
+    headerFormat = "",
+    pointFormat = "<b>{point.name}</b><br>
+        <b>{series.name}</b><br>
+        ({point.x:.2f}, {point.y:.2f})"
+  )
+```
+
+
+## Evaluación
+
+El modelo analítico desarrollado responde efectivamente a las preguntas de investigación iniciales mediante un **enfoque multiescalar descendente** que permite:
+
+1. **Diagnóstico territorial preciso:** La combinación de análisis agregado (UE), nacional y NUTS3 ha permitido identificar no solo las brechas existentes, sino su **evolución temporal** y sus **raíces estructurales** (especialización sectorial).
+
+2. **Validación de correlaciones clave:** Los modelos de regresión y análisis de componentes principales han confirmado estadísticamente relaciones fundamentales:
+   - **Fuerte correlación positiva** entre terciarización y PIB per cápita (r ≈ 0.88)
+   - **Correlación negativa** entre sector primario y desarrollo económico (r ≈ -0.82 tras transformación Yeo-Johnson)
+   - **Patrones geográficos consistentes** en la agrupación de países según variables socioeconómicas
+
+3. **Limitaciones y comparación metodológica:** 
+   - Los **modelos ARIMA** demostraron ser efectivos para capturar tendencias históricas, pero **sensibles a shocks extremos** (COVID-19), requiriendo ajustes manuales para proyecciones realistas.
+   - El enfoque **descriptivo-correlacional** adoptado es robusto para diagnóstico, pero no establece causalidad. Métodos alternativos como **modelos de panel** o **análisis de causalidad** podrían profundizar en relaciones causales en futuras investigaciones.
+   - La **escala NUTS3** proporcionó granularidad valiosa, aunque la disponibilidad de variables socioeconómicas detalladas es limitada comparada con niveles nacionales.
+
+4. **Validación cruzada:** Los resultados coinciden con estudios precedentes (EIGE, Eurofound, Rodríguez-Pose) en la **persistencia de brechas norte-sur** y la **correlación entre estructura productiva y desarrollo**, aportando la novedad de la **perspectiva evolutiva multiescalar**.
+
+En conjunto, la metodología ha demostrado ser **adecuada y efectiva** para los objetivos planteados, ofreciendo una base empírica sólida para el diseño de políticas territorialmente diferenciadas, aunque reconociendo las limitaciones inherentes a los datos y métodos disponibles.
+
+
+## Despliegue
+
+### Desarrollo del cuadro de mandos
+
+Para comunicar de forma eficaz y atractiva los resultados del análisis, se ha desarrollado un **cuadro de mandos interactivo** (dashboard) utilizando **Flexdashboard con Shiny** en R. Esta herramienta integra visualizaciones interactivas, mapas y análisis en tiempo real en una interfaz web accesible.
+
+### Estructura y arquitectura del dashboard
+
+El dashboard se estructura en **ocho pestañas principales** que siguen el viaje analítico del estudio:
+
+1.  **Intro:** Página de presentación con objetivos, herramientas y fuentes de datos (Eurostat, ISTAC, OBECAN, OWID).
+2.  **Overview:** Visión general con gráficos dinámicos de evolución del empleo, participación sectorial y brecha de género, permitiendo seleccionar región (desde UE27 hasta NUTS3) y unidad de análisis.
+3.  **Time Series:** Análisis detallado de series temporales por sector y demografía, con visualizaciones individuales y agrupadas usando `fpp3`.
+4.  **EuroMap Explorer:** Centro geoespacial con **tres mapas interactivos** (Leaflet):
+    *   *Employment by region*: Distribución geográfica del empleo por niveles NUTS.
+    *   *Employment by sex & age*: Cartografía de la brecha de género por grupos de edad.
+    *   *Key Indicators vs. Employment*: Correlación espacial entre indicadores socioeconómicos y tasas de empleo.
+5.  **Attribute Showdown:** Análisis bivariante con regresiones lineales y transformaciones (Yeo-Johnson) para explorar relaciones estadísticas.
+6.  **ARIMA Forecast:** Módulo de pronóstico para sectores clave (ej. turismo en Canarias, construcción en España), con ajuste manual de parámetros e interpolación de shocks.
+7.  **Correlation Matrix & PCA Analysis:** Análisis multivariante con matriz de correlación interactiva y componentes principales para identificar dimensiones latentes.
+8.  **Canary Insights:** Análisis específico de Canarias con:
+    *   Mapa municipal de indicadores laborales.
+    *   Diagrama Sankey de flujos edad-sexo-empleo.
+    *   Gráfico radar de inserción laboral por formación (FP vs Universidad).
+    *   Evolución temporal de contratos por tipo (efecto reforma laboral 2022).
+
+### Tecnologías y librerías clave
+
+El desarrollo se ha basado en:
+
+*   **Flexdashboard + Shiny:** Para la estructura interactiva y reactiva.
+
+*   **Visualización:** `ggplot2`, `plotly` (gráficos interactivos), `leaflet` (mapas), `highcharter` (series temporales).
+
+*   **Análisis:** `fpp3` (series temporales y ARIMA), `MASS` (transformaciones Yeo-Johnson).
+
+*   **Datos espaciales:** `geojsonio` para integración de capas geográficas NUTS.
+
+### Diseño y usabilidad
+
+Se ha priorizado una **experiencia de usuario intuitiva**:
+
+*   **Navegación descendente:** Del agregado europeo al detalle municipal.
+
+*   **Interactividad transversal:** Filtros dinámicos que actualizan todos los componentes.
+
+*   **Coherencia visual:** Paleta de colores y tipografía uniforme en todas las visualizaciones.
+
+*   **Narrativa guiada:** Cada pestaña responde a una pregunta analítica específica, conectando hallazgos de forma progresiva.
+
+Este cuadro de mandos no solo **sintetiza los hallazgos** de la memoria, sino que los transforma en una **herramienta viva** para la exploración de datos, facilitando la identificación de patrones, la formulación de hipótesis y la toma de decisiones informadas basadas en la evidencia territorial.
+
+
+# Conclusiones y trabajo futuro
+
+
+## Conclusiones
+
+### Conclusiones generales del análisis europeo
+
+1.  **Resiliencia y ciclicidad del empleo agregado:** El mercado laboral europeo ha demostrado una notable **capacidad de recuperación** tras shocks severos como la crisis financiera de 2008 y la pandemia de COVID-19, con una tendencia de creación neta de empleo a largo plazo. Sin embargo, esta trayectoria positiva a nivel agregado es profundamente desigual en el territorio.
+
+2.  **Desigualdad territorial estructural:** El análisis confirma la existencia de una **clara fractura geográfica Norte-Sur y Oeste-Este** en Europa. Esta división se manifiesta no solo en los niveles de empleo (con tasas significativamente más bajas en el Sur y Este), sino también en la **calidad del empleo**, la **estructura productiva** y la **equidad de género**.
+
+3.  **La estructura productiva como determinante clave:** Las disparidades regionales están íntimamente ligadas a la **especialización sectorial**. Las regiones más dinámicas (Norte y Oeste) combinan un sector terciario de alto valor añadido con una base industrial robusta. En contraste, muchas regiones del Sur presentan una **terciarización precaria**, con menor peso industrial y mayor dependencia de servicios de baja productividad, lo que limita la calidad y estabilidad del empleo.
+
+4.  **Brecha de género: avance desigual pero persistente:** Si bien la **brecha de género en la participación laboral se ha reducido significativamente** en las últimas dos décadas, especialmente en los países nórdicos y centroeuropeos, **su eliminación está lejos de lograrse**. La brecha persiste de forma más marcada en el Sur de Europa y se intensifica con la edad, reflejando la influencia de factores estructurales (segregación sectorial, cuidados) y normativos.
+
+5.  **Concentración y divergencia:** El empleo europeo está **altamente concentrado** en un núcleo reducido de economías (Alemania, Francia, Italia, España). La convergencia en tasas de empleo *per cápita* entre estos países y el resto es lenta, lo que indica que las **políticas de cohesión aún no han cerrado las brechas fundamentales** de desarrollo.
+
+### Conclusiones específicas del caso de Canarias
+
+1.  **Hiper-especialización y vulnerabilidad:** La economía canaria presenta una **estructura productiva extrema y dual**. El **sector turístico** (comercio, transporte, hostelería) actúa como motor principal, pero **altamente volátil y sensible** a shocks externos. Paralelamente, el **sector público** (administración, sanidad, educación) ha crecido como estabilizador contracíclico. Esta dependencia de dos pilares (uno volátil, otro dependiente de financiación) plantea **importantes riesgos para la resiliencia económica** a largo plazo.
+
+2.  **Declive de las actividades tradicionales:** Se confirma un **retroceso estructural** de los sectores primario (agricultura) e industrial, que han perdido peso relativo de forma continua. La construcción no ha recuperado los niveles anteriores a la crisis de 2008, estabilizándose en una participación moderada.
+
+3.  **Brecha de género en claro retroceso:** Canarias es un ejemplo destacado de **progreso acelerado en equidad**. La brecha de género, que era abismal a principios de siglo, **se ha reducido a menos de la mitad**, gracias al crecimiento sostenido del empleo femenino y a cambios estructurales en la economía isleña, orientada a servicios. Sin embargo, persisten barreras relacionadas con la segregación y los cuidados.
+
+4.  **Transformación del mercado laboral post-reforma:** El análisis de la contratación evidencia el **impacto tangible de la reforma laboral de 2022**. Se ha producido un **cambio de paradigma**, con una clara **supremacía de los contratos indefinidos sobre los temporales**. Esto ha reducido la "búsqueda de trabajo" recurrente y ha aportado mayor estabilidad, aunque el reto de la **calidad del empleo** en sectores estacionales como el turístico permanece.
+
+5.  **Oportunidad en un contexto de pleno empleo:** Lejos del discurso de crisis permanente, los datos muestran que Canarias, al igual que el conjunto de España y Europa, **transita por una fase de alta creación de empleo y tasas de ocupación elevadas**. El desafío actual ya no es la cantidad, sino la **mejora de la calidad, la productividad y la diversificación económica** para asegurar un crecimiento sostenible e inclusivo.
+
+### Limitaciones del estudio
+
+Este trabajo reconoce varias limitaciones metodológicas y de datos:
+
+*   **Solapamiento en la clasificación sectorial NACE Rev.2:** La estructura jerárquica de la nomenclatura presenta **solapamientos y agrupaciones** que dificultan un análisis completamente limpio de sectores discretos. Algunas categorías de alto nivel (p. ej., "Servicios") incluyen subcategorías que también se analizan por separado, lo que puede generar **doble contabilización o interpretaciones ambiguas** al comparar la participación sectorial entre territorios. Esto requiere un tratamiento cuidadoso de los datos para evitar conclusiones erróneas sobre la especialización productiva.
+
+*   **Disponibilidad y granularidad de datos:** La **cobertura y detalle de las variables** a nivel NUTS 3 es aún limitada para algunos indicadores socioeconómicos clave (como salarios, calidad contractual o formación específica), lo que restringe la profundidad del análisis en escalas locales y para dimensiones cualitativas del empleo.
+
+*   **Correlación vs. Causalidad:** El estudio identifica **asociaciones estadísticas sólidas** (ej., entre terciarización y PIB per cápita), pero los métodos utilizados **no permiten establecer relaciones causales** directas. La interpretación de estos vínculos requiere cautela y el complemento de otras metodologías.
+
+*   **Sensibilidad de los modelos de pronóstico:** Los **modelos ARIMA** demostraron ser **altamente sensibles a shocks exógenos extremos** (como la pandemia COVID-19), requiriendo intervenciones manuales de depuración e interpolación que introducen un **componente de subjetividad** en las proyecciones.
+
+*   **Enfoque en dimensiones cuantitativas:** El análisis se centra predominantemente en métricas cuantitativas de empleo. **Aspectos cualitativos cruciales**, como las condiciones laborales reales, la precariedad invisible, la satisfacción o la adecuación formativa, quedan fuera del alcance por la **falta de datos armonizados** a escala territorial fina.
+
+Estas limitaciones no invalidan los hallazgos principales, pero delimitan su alcance y señalan caminos para investigaciones futuras que podrían abordar estas lagunas con datos más refinados y metodologías complementarias.
+
+## Trabajo futuro
+
+Este estudio abre varias líneas de investigación y mejora para profundizar en el análisis territorial del empleo:
+
+1.  **Ampliación de indicadores cualitativos:** Incorporar métricas de **calidad del empleo**, como satisfacción laboral, estabilidad contractual real (más allá de la tipología), conciliación, o exposición a riesgos laborales. Avanzar hacia la medición de la **brecha salarial de género a nivel subregional**, aunque su complejidad técnica y la disponibilidad de datos lo convierten en un desafío significativo.
+
+2.  **Perspectiva global comparada:** Extender el análisis más allá de Europa para **contextualizar los resultados en una perspectiva global**. Comparar las trayectorias europeas con las de otras regiones del mundo (América del Norte, Asia-Pacífico, América Latina) permitiría identificar patrones universales y singularidades, y evaluar la posición competitiva de los territorios europeos en el mercado laboral global.
+
+3.  **Análisis longitudinal individual (datos de panel):** Complementar los datos agregados con **microdatos longitudinales** (si estuvieran disponibles de forma armonizada) para rastrear las **trayectorias laborales individuales** a lo largo del tiempo, permitiendo analizar con mayor precisión la movilidad sectorial, las transiciones empleo-desempleo y el impacto de las políticas.
+
+4.  **Refinamiento de la clasificación sectorial:** Explorar el uso de **clasificaciones sectoriales alternativas o más granulares** (p. ej., basadas en intensidad tecnológica, exposición a la globalización o sostenibilidad) para superar las limitaciones de los agregados NACE Rev. 2 y capturar mejor la **nueva economía digital y verde**.
+
+5.  **Intersección de dimensiones:** Cruzar los datos de **sector económico con las variables de sexo y edad** a nivel territorial. Este análisis permitiría, por ejemplo, identificar qué sectores en cada región tienen una mayor segregación de género por edad, o cómo la transformación digital afecta diferencialmente a hombres y mujeres de distintas generaciones en cada sector.
+
+6.  **Integración de técnicas avanzadas de IA/ML:** Aplicar **modelos de aprendizaje automático** para la detección de patrones no lineales complejos, la identificación automática de *clusters* territoriales con dinámicas similares, o la mejora de las predicciones sectoriales integrando variables externas (políticas, innovación, clima).
+
+7.  **Análisis de impacto de políticas (*policy evaluation*):** Desarrollar un marco para evaluar causalmente el **impacto de políticas públicas específicas** (como los fondos de cohesión, las reformas laborales o los programas de igualdad) en los resultados de empleo y equidad a diferentes escalas territoriales, utilizando métodos de inferencia causal.
+
+8.  **Dashboard evolutivo y participativo:** Transformar el cuadro de mandos actual en una **herramienta viva y actualizable automáticamente**, e incorporar funcionalidades que permitan a los usuarios (administraciones, investigadores) cargar y cruzar sus propios datos locales, fomentando un análisis colaborativo y adaptado a necesidades específicas.
+
+Estas líneas futuras buscan superar las limitaciones actuales y convertir el análisis territorial del empleo en una **herramienta aún más poderosa para el diagnóstico, la anticipación y el diseño de políticas** verdaderamente efectivas y centradas en las personas.
+
+
+## Anexo. Seguimiento temporal actividades del proyecto  {-} 
+
+```{r}
+library(googlesheets4)
+gs4_deauth()
+SeguimientoActividadesProyecto <- read_sheet("https://docs.google.com/spreadsheets/d/1F6yR0D6PYPaEGb9DTSCfk-1Vnn1lULw8s3P4IondTr8/edit?usp=sharing") %>%
+  as_tibble() 
+```
+
+TOTAL HORAS TRABAJADAS EN EL PROYECTO : `r  round(sum(SeguimientoActividadesProyecto$MINUTES/60),digits=2)`
+
+
+```{r}
+actividades <- c("Introducción","Aportaciones del trabajo","Compresión del negocio","Comprensión de los datos","Preparación de los datos","Modelado","Evaluación","Despliegue","Conclusiones y Trabajo Futuro","Otros")
+p <- SeguimientoActividadesProyecto%>%
+  group_by(ACTIVITY)%>%
+   summarise(
+     HORAS=round(sum(MINUTES)/60,digits = 1)
+   )%>%
+  mutate(ACTIVITY=factor(ACTIVITY,levels=actividades)) %>% 
+  na.omit() %>% 
+  ggplot(aes(ACTIVITY,HORAS)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label=HORAS),size=3,colour = "blue",nudge_y = 0.2)+ 
+  theme(axis.text.x = element_text(angle = 45,hjust=1))+
+  labs(x="",y="HORAS TRABAJADAS",title = "TOTAL HORAS TRABAJADAS POR ACTIVIDAD")
+
+ggplotly(p)
+```
+
+```{r}
+p <- SeguimientoActividadesProyecto%>%
+  mutate(week=yearweek(as.Date(START))) %>% 
+  group_by(week)%>%
+   summarise(
+     HORAS=round(sum(MINUTES)/60,digits = 1)
+   )%>%
+  ggplot(aes(week,HORAS)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label=HORAS),size=3,colour = "blue",nudge_y = 0.2)+ 
+  theme(axis.text.x = element_text(angle = 45,hjust=1))+
+  labs(x="",y="HORAS TRABAJADAS",title = "TOTAL HORAS TRABAJADAS POR SEMANA")
+
+ggplotly(p)
+```
+
+**DESGLOSE DETALLADO DE LAS SESIONES DE TRABAJO**
+```{r}
+SeguimientoActividadesProyecto%>% 
+  datatable(
+  options = list(
+    scrollX = TRUE,   
+    scrollY = "400px", 
+    paging = FALSE
+  )
+)
+```
