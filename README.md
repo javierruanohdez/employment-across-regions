@@ -9,7 +9,7 @@
 An **end-to-end labor market analysis project** that explores **employment dynamics across Europe and the Canary Islands**, combining:
 
 * 🧭 an **interactive Shiny dashboard** for exploratory analysis
-* 📄 a **[comprehensive analytical memory (HTML)](https://javierruanohdez.github.io/employment-across-regions/)** with structured results, modeling and interpretation
+* 📄 a **[comprehensive analytical memory (HTML)](https://javierruanohdez.github.io/employment-across-regions/Employment_across_regionsMemory.html)** with structured results, modeling and interpretation
 
 The project follows a **top-down analytical journey**, from **EU-wide aggregates** to **municipal-level insights in the Canary Islands**.
 
