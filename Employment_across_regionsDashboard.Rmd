@@ -1,6 +1,6 @@
 ---
 title: "Employment Across Regions"
-output: 
+output:
   flexdashboard::flex_dashboard:
     vertical_layout: fill
 runtime: shiny
@@ -111,9 +111,52 @@ tags$script(HTML("
 "))
 ```
 
+```{r}
+# ---- Required data bootstrap (Posit Connect safe) ----
+# Directorios
+required_path <- "required_data"
+dashboard_path <- "."  # Donde está el Rmd
+
+# Crear carpeta datasets si no existe
+datasets_dir <- file.path(required_path, "datasets")
+if (!dir.exists(datasets_dir)) dir.create(datasets_dir, recursive = TRUE)
+
+# ---- Función para aplanar un ZIP ----
+unzip_flat <- function(zipfile, target_dir) {
+  if (!file.exists(zipfile)) return()
+  z_files <- unzip(zipfile, list = TRUE)$Name
+  for (f in z_files) {
+    # ignorar carpetas
+    if (grepl("/$", f)) next
+    # extraer a tempdir
+    unzip(zipfile, files = f, exdir = tempdir())
+    # mover al target_dir con basename
+    file.rename(file.path(tempdir(), f), file.path(target_dir, basename(f)))
+  }
+}
+
+# ---- Descomprimir datasets ----
+datasets_zips <- c("required_datasets1.zip", "required_datasets2.zip")
+for (zipf in datasets_zips) {
+  unzip_flat(file.path(required_path, zipf), datasets_dir)
+}
+
+# ---- Descomprimir geos ----
+geos_dir <- file.path(required_path, "geos")
+if (!dir.exists(geos_dir)) dir.create(geos_dir, recursive = TRUE)
+unzip_flat(file.path(required_path, "required_geos.zip"), geos_dir)
+
+# ---- Descomprimir imágenes DIRECTO al directorio del Rmd ----
+imgs_zip <- file.path(required_path, "required_imgs.zip")
+if (file.exists(imgs_zip)) {
+  unzip_flat(imgs_zip, dashboard_path)
+}
+```
+
+
 
 ```{r}
-EMPLEO <- readr::read_csv("EMPLEO.csv")
+EMPLEO <- readr::read_csv("required_data/datasets/EMPLEO.csv")
 
 EMPLEO_Sectores <- EMPLEO %>%
   mutate(sector = case_when(
@@ -124,7 +167,7 @@ EMPLEO_Sectores <- EMPLEO %>%
   )) %>%
   filter(!is.na(sector))
 
-TASA_EMPLEO <- readr::read_csv("TASA_EMPLEO.csv") %>%
+TASA_EMPLEO <- readr::read_csv("required_data/datasets/TASA_EMPLEO.csv") %>%
   as_tibble()
 
 GENDER_GAP <- TASA_EMPLEO %>%
@@ -135,7 +178,7 @@ GENDER_GAP <- TASA_EMPLEO %>%
   ) %>%
   mutate(gender_gap = M - F)
   
-KEY_INDICATORS <- readr::read_csv("KEY_INDICATORS.csv") %>%
+KEY_INDICATORS <- readr::read_csv("required_data/datasets/KEY_INDICATORS.csv") %>%
   as_tibble()
 
 emp_pareto_UE <- EMPLEO %>%
@@ -144,31 +187,31 @@ emp_pareto_UE <- EMPLEO %>%
   arrange(employment) %>%
   mutate(full_name=factor(full_name,levels=unique(full_name)))
 
-geoj_0 <- geojson_read("geoj_0.geojson",  what = "sp")
-geoj_1 <- geojson_read("geoj_1.geojson",  what = "sp")
-geoj_2 <- geojson_read("geoj_2.geojson",  what = "sp")
-geoj_3 <- geojson_read("geoj_3.geojson",  what = "sp")
+geoj_0 <- geojson_read("required_data/geos/geoj_0.geojson",  what = "sp")
+geoj_1 <- geojson_read("required_data/geos/geoj_1.geojson",  what = "sp")
+geoj_2 <- geojson_read("required_data/geos/geoj_2.geojson",  what = "sp")
+geoj_3 <- geojson_read("required_data/geos/geoj_3.geojson",  what = "sp")
 
 geoj <- list(geoj_0, geoj_1, geoj_2, geoj_3)
 
-coord_0 <- readr::read_csv("eu_nuts0_coords.csv") %>% as_tibble()
-coord_1 <- readr::read_csv("eu_nuts1_coords.csv") %>% as_tibble() %>% mutate(Latitude = as.numeric(Latitude))
-coord_2 <- readr::read_csv("eu_nuts2_coords.csv") %>% as_tibble() %>% mutate(Latitude = as.numeric(Latitude))
-coord_3 <- readr::read_csv("eu_nuts3_coords.csv") %>% as_tibble() %>% mutate(Latitude = as.numeric(Latitude), Longitude = as.numeric(Longitude))
+coord_0 <- readr::read_csv("required_data/geos/eu_nuts0_coords.csv") %>% as_tibble()
+coord_1 <- readr::read_csv("required_data/geos/eu_nuts1_coords.csv") %>% as_tibble() %>% mutate(Latitude = as.numeric(Latitude))
+coord_2 <- readr::read_csv("required_data/geos/eu_nuts2_coords.csv") %>% as_tibble() %>% mutate(Latitude = as.numeric(Latitude))
+coord_3 <- readr::read_csv("required_data/geos/eu_nuts3_coords.csv") %>% as_tibble() %>% mutate(Latitude = as.numeric(Latitude), Longitude = as.numeric(Longitude))
 
 coord <- list(coord_0, coord_1, coord_2, coord_3)
 
 Islas_Canarias <- c("Gran Canaria", "Tenerife", "Fuerteventura", "Lanzarote", "La Gomera", "La Palma", "El Hierro") 
 
-CONTRATOS_2018_2024 <- readr::read_csv("CONTRATOS_2018_2024.csv") %>% as_tibble()
+CONTRATOS_2018_2024 <- readr::read_csv("required_data/datasets/CONTRATOS_2018_2024.csv") %>% as_tibble()
 
-INSERCION_LABORAL <- readr::read_csv("INSERCION_LABORAL.csv") %>% as_tibble()
+INSERCION_LABORAL <- readr::read_csv("required_data/datasets/INSERCION_LABORAL.csv") %>% as_tibble()
 
-EMPLEO_MUNICIPIOS <- readr::read_csv("EMPLEO_MUNICIPIOS.csv") %>% as_tibble() %>% select(-geom) %>%
+EMPLEO_MUNICIPIOS <- readr::read_csv("required_data/datasets/EMPLEO_MUNICIPIOS.csv") %>% as_tibble() %>% select(-geom) %>%
   mutate(temp_t = 100-tpar_t, temp_m = 100-tpar_m, temp_f = 100-tpar_f) %>% 
   relocate((temp_t:temp_f), .after = psel_f)
 
-municipios.geoj <- geojson_read("geo_canarias_municipios.geojson",  what = "sp")
+municipios.geoj <- geojson_read("required_data/geos/geo_canarias_municipios.geojson",  what = "sp")
 
 municipios.geoj.tb <- municipios.geoj %>% 
   as_tibble() %>%
