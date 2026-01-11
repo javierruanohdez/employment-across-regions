@@ -234,44 +234,31 @@ For this reason, it is **strongly recommended to download or clone the entire pr
 
 ### 🛠 Software Requirements
 
-* **R** must be installed to run the project.
-* **RStudio is strongly recommended** and is the **intended environment** for running the dashboard and generating the analytical memory.
-    Running the project without RStudio is possible but requires advanced knowledge of R and command-line usage.
-  
+* **R** must be installed.
+* **RStudio is required** to run the project.
+
 ---
 
 ## ▶ Usage
 
 ### Run the Dashboard
 
-You can run the dashboard in **two equivalent ways**:
-
-**Option 1 – From the console**
-
-```r
-shiny::runApp()
-```
-
-**Option 2 – From RStudio**
-
-* Open `Employment_across_regionsDashboard.Rmd`
+* Open `Employment_across_regionsDashboard.Rmd` in **RStudio**
 * Click **Run Document**
+  *(this document uses **Shiny runtime**)*
 
 ---
 
 ### Generate the Analytical Memory
 
-1. Open:
-
-```
-Employment_across_regionsMemory.Rmd
-```
-
+1. Open `Employment_across_regionsMemory.Rmd` in **RStudio**
 2. Click **Knit** to generate:
 
 ```
 Employment_across_regionsMemory.html
 ```
+
+*(this document produces an HTML report)*
 
 ---
 
