@@ -80,8 +80,48 @@ update_geom_defaults("text", list(family = "serif"))
 update_geom_defaults("label", list(family = "serif"))
 ```
 
+```{r}
+# ---- Required data bootstrap (Posit Connect safe) ----
+# Directorios
+required_path <- "required_data"
+dashboard_path <- "."  # Donde está el Rmd
 
-[Cuadro de mandos](http://10.22.143.222:3838/sample-apps/a2658/DashboardJRH.Rmd)
+# Crear carpeta datasets si no existe
+datasets_dir <- file.path(required_path, "datasets")
+if (!dir.exists(datasets_dir)) dir.create(datasets_dir, recursive = TRUE)
+
+# ---- Función para aplanar un ZIP ----
+unzip_flat <- function(zipfile, target_dir) {
+  if (!file.exists(zipfile)) return()
+  z_files <- unzip(zipfile, list = TRUE)$Name
+  for (f in z_files) {
+    # ignorar carpetas
+    if (grepl("/$", f)) next
+    # extraer a tempdir
+    unzip(zipfile, files = f, exdir = tempdir())
+    # mover al target_dir con basename
+    file.rename(file.path(tempdir(), f), file.path(target_dir, basename(f)))
+  }
+}
+
+# ---- Descomprimir datasets ----
+datasets_zips <- c("required_datasets1.zip", "required_datasets2.zip")
+for (zipf in datasets_zips) {
+  unzip_flat(file.path(required_path, zipf), datasets_dir)
+}
+
+# ---- Descomprimir geos ----
+geos_dir <- file.path(required_path, "geos")
+if (!dir.exists(geos_dir)) dir.create(geos_dir, recursive = TRUE)
+unzip_flat(file.path(required_path, "required_geos.zip"), geos_dir)
+
+# ---- Descomprimir imágenes DIRECTO al directorio del Rmd ----
+imgs_zip <- file.path(required_path, "required_imgs.zip")
+if (file.exists(imgs_zip)) {
+  unzip_flat(imgs_zip, dashboard_path)
+}
+```
+
 
 [Repositorio en Github](https://github.com/javierruanohdez/employment-across-regions)
 
@@ -848,7 +888,7 @@ for(col in colnames(data)){
 ### Datos OWID (Our World in Data).
 
 ```{r}
-datos_OWID <- read_csv("KEY_INDICATORS.csv") %>% as_tibble()
+datos_OWID <- read_csv("required_data/datasets/KEY_INDICATORS.csv") %>% as_tibble()
 datos_OWID
 ```
 
@@ -925,7 +965,7 @@ str(datos_OWID %>% arrange(Country, Year))
 ### Datos ISTAC (Instituto Canario de Estadística).
 
 ```{r}
-insercion <- read_csv("INSERCION_LABORAL.csv") %>% as_tibble() %>% select(-"...1" )
+insercion <- read_csv("required_data/datasets/INSERCION_LABORAL.csv") %>% as_tibble() %>% select(-"...1" )
 insercion
 ```
 
@@ -971,7 +1011,7 @@ str(insercion %>% arrange(RAMA_ENSENIANZA_CODE, TIME_PERIOD_CODE))
   
 
 ```{r}
-empleo_municipios_IC <- read_csv("EMPLEO_MUNICIPIOS.csv") %>% as_tibble() %>% select(-"...1")
+empleo_municipios_IC <- read_csv("required_data/datasets/EMPLEO_MUNICIPIOS.csv") %>% as_tibble() %>% select(-"...1")
 empleo_municipios_IC
 ```
 
@@ -1030,7 +1070,7 @@ str(empleo_municipios_IC %>% arrange(label))
 ### Datos OBECAN (Observatorio Canario de Empleo y Formación Profesional)
 
 ```{r}
-contratos_IC <- read_csv("CONTRATOS_2018_2024.csv") %>% as_tibble() %>% select(-año, -mes)
+contratos_IC <- read_csv("required_data/datasets/CONTRATOS_2018_2024.csv") %>% as_tibble() %>% select(-año, -mes)
 contratos_IC
 ```
 
@@ -1505,7 +1545,7 @@ INSERCION_LABORAL %>% write.csv("INSERCION_LABORAL.csv")
 ```
 
 ```{r}
-EMPLEO <- read_csv("EMPLEO.csv")
+EMPLEO <- read_csv("required_data/datasets/EMPLEO.csv")
 
 EMPLEO_Sectores <- EMPLEO %>%
   mutate(sector = case_when(
@@ -1516,7 +1556,7 @@ EMPLEO_Sectores <- EMPLEO %>%
   )) %>%
   filter(!is.na(sector))
 
-TASA_EMPLEO <- read.csv("TASA_EMPLEO.csv") %>%
+TASA_EMPLEO <- read.csv("required_data/datasets/TASA_EMPLEO.csv") %>%
   as_tibble()
 
 GENDER_GAP <- TASA_EMPLEO %>%
@@ -1527,14 +1567,14 @@ GENDER_GAP <- TASA_EMPLEO %>%
   ) %>%
   mutate(gender_gap = M - F)
 
-KEY_INDICATORS <- read.csv("KEY_INDICATORS.csv") %>%
+KEY_INDICATORS <- read.csv("required_data/datasets/KEY_INDICATORS.csv") %>%
   as_tibble()
 
-CONTRATOS_2018_2024 <- read_csv("CONTRATOS_2018_2024.csv") %>% as_tibble()
+CONTRATOS_2018_2024 <- read_csv("required_data/datasets/CONTRATOS_2018_2024.csv") %>% as_tibble()
 
-INSERCION_LABORAL <- read_csv("INSERCION_LABORAL.csv") %>% as_tibble()
+INSERCION_LABORAL <- read_csv("required_data/datasets/INSERCION_LABORAL.csv") %>% as_tibble()
 
-EMPLEO_MUNICIPIOS <- read_csv("EMPLEO_MUNICIPIOS.csv") %>% as_tibble() %>% select(-geom) %>%
+EMPLEO_MUNICIPIOS <- read_csv("required_data/datasets/EMPLEO_MUNICIPIOS.csv") %>% as_tibble() %>% select(-geom) %>%
   mutate(temp_t = 100-tpar_t, temp_m = 100-tpar_m, temp_f = 100-tpar_f) %>% 
   relocate((temp_t:temp_f), .after = psel_f)
 ```
@@ -1841,7 +1881,7 @@ La visualización muestra un claro **gradiente norte-sur y oeste-este**. Los pa�
 Por el contrario, el sur de Europa (Italia, Grecia, regiones del sur de España) y el este (Hungría, Rumanía, Polonia) muestran los tonos azules más intensos, indicando **brechas que superan los 10-15 puntos porcentuales**. Esta distribución no es aleatoria: correlaciona con factores estructurales como la menor provisión de servicios públicos de cuidado, una mayor presencia de sectores tradicionales con alta segregación de género, y normas sociales más arraigadas sobre los roles familiares.
 
 ```{r}
-geoj <- geojson_read("geoj_0.geojson", what = "sp")
+geoj <- geojson_read("required_data/geos/geoj_0.geojson", what = "sp")
 
 gap_tb <- GENDER_GAP %>%
   filter(EU27_2020 == "SI", NUTS == 0, TIME_PERIOD == 2023, age != "Y_GE65") %>%
@@ -2710,7 +2750,7 @@ Por el contrario, en **Gran Canaria y Tenerife** se aprecia una **mayor fluctuac
 Este patrón confirma que, más allá de la especialización turística general, **existen importantes disparidades intrainsulares** vinculadas a la concentración de la actividad económica en núcleos específicos y a la diversificación relativa de los sectores productivos en las islas capitalinas.
 
 ```{r}
-municipios.geoj <- geojson_read("geo_canarias_municipios.geojson",  what = "sp")
+municipios.geoj <- geojson_read("required_data/geos/geo_canarias_municipios.geojson",  what = "sp")
 
 municipios.geoj.tb <- municipios.geoj %>% 
   as_tibble() %>%
@@ -3258,7 +3298,7 @@ En conjunto, la metodología ha demostrado ser **adecuada y efectiva** para los 
 
 Para comunicar de forma eficaz y atractiva los resultados del análisis, se ha desarrollado un **cuadro de mandos interactivo** (dashboard) utilizando **Flexdashboard con Shiny** en R. Esta herramienta integra visualizaciones interactivas, mapas y análisis en tiempo real en una interfaz web accesible.
 
-### Estructura y arquitectura del dashboard
+#### Estructura y arquitectura del dashboard
 
 El dashboard se estructura en **ocho pestañas principales** que siguen el viaje analítico del estudio:
 
@@ -3278,7 +3318,7 @@ El dashboard se estructura en **ocho pestañas principales** que siguen el viaje
     *   Gráfico radar de inserción laboral por formación (FP vs Universidad).
     *   Evolución temporal de contratos por tipo (efecto reforma laboral 2022).
 
-### Tecnologías y librerías clave
+#### Tecnologías y librerías clave
 
 El desarrollo se ha basado en:
 
@@ -3290,7 +3330,7 @@ El desarrollo se ha basado en:
 
 *   **Datos espaciales:** `geojsonio` para integración de capas geográficas NUTS.
 
-### Diseño y usabilidad
+#### Diseño y usabilidad
 
 Se ha priorizado una **experiencia de usuario intuitiva**:
 
@@ -3303,6 +3343,11 @@ Se ha priorizado una **experiencia de usuario intuitiva**:
 *   **Narrativa guiada:** Cada pestaña responde a una pregunta analítica específica, conectando hallazgos de forma progresiva.
 
 Este cuadro de mandos no solo **sintetiza los hallazgos** de la memoria, sino que los transforma en una **herramienta viva** para la exploración de datos, facilitando la identificación de patrones, la formulación de hipótesis y la toma de decisiones informadas basadas en la evidencia territorial.
+
+
+### Publicación Web (GitHub Pages)
+
+Además, el repositorio ha sido configurado para publicar la versión compilada de la memoria en formato HTML mediante *GitHub Pages*, funcionando como una versión estable y accesible del documento. A diferencia del dashboard interactivo —que requiere un servidor de cálculo activo en R—, esta publicación estática permite que **cualquier persona con acceso al enlace** pueda consultar íntegramente el informe, incluyendo los análisis y las visualizaciones interactivas, desde dispositivos móviles o de escritorio. De este modo, se garantiza la accesibilidad, conservación y difusión universal de los resultados del proyecto.
 
 
 # Conclusiones y trabajo futuro
@@ -3396,7 +3441,7 @@ p <- SeguimientoActividadesProyecto%>%
   na.omit() %>% 
   ggplot(aes(ACTIVITY,HORAS)) +
   geom_bar(stat = "identity") +
-  geom_text(aes(label=HORAS),size=3,colour = "blue",nudge_y = 0.2)+ 
+  geom_text(aes(label=HORAS),size=3,colour = "blue",nudge_y = 1.5)+ 
   theme(axis.text.x = element_text(angle = 45,hjust=1))+
   labs(x="",y="HORAS TRABAJADAS",title = "TOTAL HORAS TRABAJADAS POR ACTIVIDAD")
 
@@ -3412,7 +3457,7 @@ p <- SeguimientoActividadesProyecto%>%
    )%>%
   ggplot(aes(week,HORAS)) +
   geom_bar(stat = "identity") +
-  geom_text(aes(label=HORAS),size=3,colour = "blue",nudge_y = 0.2)+ 
+  geom_text(aes(label=HORAS),size=3,colour = "blue",nudge_y = 0.5)+ 
   theme(axis.text.x = element_text(angle = 45,hjust=1))+
   labs(x="",y="HORAS TRABAJADAS",title = "TOTAL HORAS TRABAJADAS POR SEMANA")
 
