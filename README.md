@@ -215,19 +215,27 @@ Socioeconomic and structural indicators used for correlation and multivariate an
 
 ## ⚙️ Installation & Data Requirements
 
-### 🔴 Required Data (Critical)
+### 📦 Required Files and Data
 
-All **ZIP files inside `required_data/` must be extracted**.
+This project depends on **multiple data files and auxiliary resources**, including:
 
-👉 **The extracted files must be placed at the same directory level as:**
+* **ZIP files inside `required_data/`** (automatically decompressed at runtime)
+* `utilidades.R`, which contains **external helper functions**
+* `styles.css` for visual styling
+* Image files located in the **project root directory**
+* Additional Excel files and other supporting resources used by the scripts
 
-```
-Employment_across_regionsDashboard.Rmd
-Employment_across_regionsMemory.Rmd
-```
+👉 **No manual extraction or configuration is required**.
+However, **all files must be present** for the project to run correctly.
 
-They must coexist in the **project root**.
-Otherwise, **neither the dashboard nor the analytical memory will run correctly**.
+For this reason, it is **strongly recommended to download or clone the entire project as-is**, preserving the original file structure. Running individual files in isolation may cause errors or missing dependencies.
+
+---
+
+### 🛠 Software Requirements
+
+* **R** must be installed.
+* **RStudio is required** to run the project.
 
 ---
 
@@ -235,34 +243,22 @@ Otherwise, **neither the dashboard nor the analytical memory will run correctly*
 
 ### Run the Dashboard
 
-You can run the dashboard in **two equivalent ways**:
-
-**Option 1 – From the console**
-
-```r
-shiny::runApp()
-```
-
-**Option 2 – From RStudio**
-
-* Open `Employment_across_regionsDashboard.Rmd`
+* Open `Employment_across_regionsDashboard.Rmd` in **RStudio**
 * Click **Run Document**
+  *(this document uses **Shiny runtime**)*
 
 ---
 
 ### Generate the Analytical Memory
 
-1. Open:
-
-```
-Employment_across_regionsMemory.Rmd
-```
-
+1. Open `Employment_across_regionsMemory.Rmd` in **RStudio**
 2. Click **Knit** to generate:
 
 ```
 Employment_across_regionsMemory.html
 ```
+
+*(this document produces an HTML report)*
 
 ---
 
