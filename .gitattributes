@@ -7,7 +7,7 @@
 # Excel files are not code, ignore them
 *.xlsx linguist-vendored
 
-# Image and archive files, ignore them
+# Image, archive and style files, ignore them
 *.jpg linguist-vendored
 *.zip linguist-vendored
-
+*.css linguist-vendored
